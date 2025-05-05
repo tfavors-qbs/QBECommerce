@@ -1,0 +1,30 @@
+﻿@using QBExternalWebLibrary.Models
+
+<MudPaper Class="pa-4 mb-3" Elevation="2">
+    <MudGrid>
+
+        
+        <MudItem xs="12" sm="12" md="12" lg="8" xl="10">
+            <MudGrid>
+                <MudItem xs="3"><MudText Align="Align.Left">Customer Stk No:</MudText></MudItem>
+                <MudItem xs="9"><MudText Align="Align.Left">@Item?.CustomerStkNo</MudText></MudItem>
+                <MudItem xs="3"><MudText Align="Align.Left">Description</MudText></MudItem>
+                <MudItem xs="9"><MudText Align="Align.Left">@Item?.Description</MudText></MudItem>
+            </MudGrid>
+        </MudItem>
+        <MudItem xs="12" sm="12" md="12" lg="4" xl="2">
+            <MudStack>
+                <MudNumericField Variant="Variant.Outlined" @bind-Value="@_orderQuantity"></MudNumericField>
+                <MudButton StartIcon="@Icons.Material.TwoTone.AddShoppingCart" Variant="Variant.Filled" Color="Color.Tertiary">Add To Cart</MudButton>
+            </MudStack>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@code {
+    public int _orderQuantity = 1;
+
+    [Parameter]
+    public ContractItemEditViewModel Item { get; set; }
+
+}

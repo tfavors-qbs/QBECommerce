@@ -1,0 +1,106 @@
+﻿@model ContractItemEditViewModel
+
+@{
+    ViewData["Title"] = "View";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h1>View</h1>
+
+<h4>ContractItem</h4>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <form asp-action="Create">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="form-group">
+                <label asp-for="ClientId" class="control-label"></label>
+                <select asp-for="ClientId" class ="form-control" asp-items="ViewBag.ClientId"></select>
+            </div>
+            <div class="form-group">
+                <label asp-for="CustomerStkNo" class="control-label"></label>
+                <input asp-for="CustomerStkNo" class="form-control" />
+                <span asp-validation-for="CustomerStkNo" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Description" class="control-label"></label>
+                <input asp-for="Description" class="form-control" />
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+            <div class="form-group">
+                <label asp-for="Price" class="control-label"></label>
+                <input asp-for="Price" asp-format="(0:N2)" class="form-control" />
+                <span asp-validation-for="Price" class="text-danger"></span>
+            </div>
+            <div class="form-group form-check">
+                <label class="form-check-label">
+                    <input class="form-check-input" id="nonStockInput" asp-for="NonStock" /> @Html.DisplayNameFor(model => model.NonStock)
+                </label>
+            </div>
+            <div class="form-group">
+                <label asp-for="SKUId" class="control-label" id="skuInputLabel"></label>
+                <select asp-for="SKUId" class ="form-control" id="skuInput" asp-items="ViewBag.SKUId"></select>
+            </div>
+            <div class="form-group">
+                <label asp-for="DiameterId" class="control-label" id="diameterInputLabel"></label>
+                <select asp-for="DiameterId" class ="form-control" id="diameterInput" asp-items="ViewBag.DiameterId"></select>
+            </div>
+            <div class="form-group">
+                <label asp-for="LengthId" class="control-label" id="lengthInputLabel"></label>
+                <select asp-for="LengthId" class ="form-control" id="lengthInput" asp-items="ViewBag.LengthId">
+                    <option value="">N/A</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <input type="submit" value="Create" class="btn btn-primary" />
+            </div>
+        </form>
+    </div>
+</div>
+
+<div>
+    <a asp-action="Index">Back to List</a>
+</div>
+
+@section Scripts {
+    @{await Html.RenderPartialAsync("_ValidationScriptsPartial");}
+    <script>
+        $(document).ready(function () {
+            // Initial state
+            toggleInput();
+
+            // Handle checkbox change event
+            $('#nonStockInput').change(function () {
+                toggleInput();
+            });
+
+            // Function to enable/disable input based on checkbox state
+            function toggleInput() {
+                var nonStockInput = $('#nonStockInput');
+                var skuInput = $('#skuInput');
+                var skuInputLabel = $('#skuInputLabel')
+                var diameterInput = $('#diameterInput')
+                var diameterInputLabel = $('#diameterInputLabel')
+                var lengthInput = $('#lengthInput')
+                var lengthInputLabel = $('#lengthInputLabel')
+
+                if (nonStockInput.is(':checked')) {
+                    skuInput.prop('hidden', true);
+                    diameterInput.prop('hidden', false);
+                    lengthInput.prop('hidden', false);
+                    skuInputLabel.prop('hidden', true);
+                    diameterInputLabel.prop('hidden', false);
+                    lengthInputLabel.prop('hidden', false);
+
+                } else {
+                    skuInput.prop('hidden', false);
+                    diameterInput.prop('hidden', true);
+                    lengthInput.prop('hidden', true);
+                    skuInputLabel.prop('hidden', false);
+                    diameterInputLabel.prop('hidden', true);
+                    lengthInputLabel.prop('hidden', true);
+                }
+            }
+        });
+    </script>
+} 

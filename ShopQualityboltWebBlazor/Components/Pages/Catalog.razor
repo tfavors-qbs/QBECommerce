@@ -1,0 +1,325 @@
+﻿@page "/catalog"
+@using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Models.Products
+@using QBExternalWebLibrary.Services.Http
+@using ShopQualityboltWebBlazor.Components.CustomComponents
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IApiService<ContractItem, ContractItemEditViewModel> contractItemApiService
+@inject IApiService<Diameter, Diameter> diameterApiService
+@inject IApiService<Length, Length> lengthApiService
+@inject IApiService<Shape, Shape> shapeApiService
+@inject IApiService<Material, Material> materialApiService
+@inject IApiService<Coating, Coating> coatingApiService
+@inject IApiService<Thread, Thread> threadApiService
+@inject IApiService<Spec, Spec> specApiService
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>Quality Bolt and Screw - Catalog</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <MudGrid>
+            <MudItem xs="12" sm="12" md="12" lg="4" xl="3">
+                <MudPaper Class="pa-4 d-flex flex-column overflow-x-auto" MaxHeight="@((15*_itemsPerPage).ToString() + "vh")">
+                    <MudStack>
+                        <MudText Typo="Typo.h4">Filters</MudText>
+                        @if (_classes != null && _classes.Count != 0) {
+                            <SpecificationFilter SelectionChanged="ClassSelectionChanged" Title="Classes" Specifications="_classes" MultiSelect="false"></SpecificationFilter>
+                        }
+                        <SpecificationFilter @ref="_groupFilter" SelectionChanged="GroupSelectionChanged" Title="Groups" Specifications="_groups" MultiSelect="true"></SpecificationFilter>
+                        @if (_diameters != null && _diameters.Count != 0) {
+                            <SpecificationFilter @ref="_diameterFilter" SelectionChanged="DiameterSelectionChanged" Title="Diameters" Specifications="_diameters" MultiSelect="true"></SpecificationFilter>
+                        }
+                        @if (_lengths != null && _lengths.Count != 0) {
+                            <SpecificationFilter @ref="_lengthFilter" SelectionChanged="LengthSelectionChanged" Title="Lengths" Specifications="_lengths" MultiSelect="true"></SpecificationFilter>
+                        }
+                        @if (_shapes != null && _shapes.Count != 0) {
+                            <SpecificationFilter @ref="_shapeFilter" SelectionChanged="ShapeSelectionChanged" Title="Shapes" Specifications="_shapes" MultiSelect="true"></SpecificationFilter>
+                        }
+                        @if (_materials != null && _materials.Count != 0) {
+                            <SpecificationFilter @ref="_materialFilter" SelectionChanged="MaterialSelectionChanged" Title="Materials" Specifications="_materials" MultiSelect="true"></SpecificationFilter>
+                        }
+                        @if (_coatings != null && _coatings.Count != 0) {
+                            <SpecificationFilter @ref="_coatingFilter" SelectionChanged="CoatingSelectionChanged" Title="Coatings" Specifications="_coatings" MultiSelect="true"></SpecificationFilter>
+                        }
+                        @if (_threads != null && _threads.Count != 0) {
+                            <SpecificationFilter @ref="_threadFilter" SelectionChanged="ThreadSelectionChanged" Title="Threads" Specifications="_threads" MultiSelect="true"></SpecificationFilter>
+                        }
+                        @if (_specs != null && _specs.Count != 0) {
+                            <SpecificationFilter @ref="_specFilter" SelectionChanged="SpecSelectionChanged" Title="Specifications" Specifications="_specs" MultiSelect="true"></SpecificationFilter>
+                        }
+                    </MudStack>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" sm="12" md="12" lg="8" xl="9">
+                <MudStack>
+                    <MudPaper Class="mb-4 pa-4" Elevation="2">
+                        <MudGrid Class="d-flex align-end">
+                            <MudItem xs="12">
+                                <MudText Typo="Typo.h4">@context.User.Claims.Where(x => x.Type == "ClientName").FirstOrDefault().Value - Catalog Items</MudText>
+                            </MudItem>
+                            <MudItem xs="2"><MudText>Results: @_itemsToShow?.Count</MudText></MudItem>
+                            <MudItem xs="10"><MudTextField @bind-Value="_searchString" Immediate="true" TextChanged="@Filter" Label="Quick Filter"></MudTextField></MudItem>
+                        </MudGrid>
+                    </MudPaper>
+
+                    @if (_itemsToShow != null && _itemsToShow.Count != 0) {
+                        <MudGrid>
+                            <MudItem xs="12" sm="12" md="12" lg="12" xl="7">
+                                <MudStack AlignItems="AlignItems.Center">
+                                    <MudPagination @bind-Selected="@_pageSelected" Color="Color.Primary" Count="TotalPages"></MudPagination>
+                                </MudStack>
+                            </MudItem>
+                            <MudItem xs="12" sm="12" md="12" lg="12" xl="5">
+                                <MudGrid>
+                                    <MudItem xs="6">
+                                        <MudText Class="d-flex align-center justify-end mud-width-full mud-height-full">Items Per Page:</MudText>
+                                    </MudItem>
+                                    <MudItem xs="6" Class="d-flex align-center justify-start mud-width-full mud-height-full">
+                                        <MudChipSet T="int" @bind-SelectedValue="_itemsPerPage" CheckMark SelectionMode="@SelectionMode.SingleSelection">
+                                            <MudChip Text="10" Value="10">10</MudChip>
+                                            <MudChip Text="25" Value="25">25</MudChip>
+                                            <MudChip Text="50" Value="50">50</MudChip>
+                                        </MudChipSet>
+
+                                    </MudItem>
+                                </MudGrid>
+                            </MudItem>
+                        </MudGrid>
+                    } else {
+                        <MudText Typo="Typo.body1">No Results</MudText>
+                    }
+                    @if (_itemsToShow != null && _itemsToShow.Count != 0) {
+                        foreach (var item in _itemsToShow.GetRange(ShowStartIndex, ShowNumberOfResults)) {
+                            <CatalogItem Item="item"></CatalogItem>
+                        }
+                    }
+                    @if (_itemsToShow != null && _itemsToShow.Count > 5) {
+                        <MudGrid>
+                            <MudItem xs="8">
+                                <MudStack AlignItems="AlignItems.Center">
+                                    <MudPagination @bind-Selected="@_pageSelected" Color="Color.Primary" Count="TotalPages"></MudPagination>
+                                </MudStack>
+                            </MudItem>
+                            <MudItem xs="4">
+                                <MudGrid>
+                                    <MudItem xs="6">
+                                        <MudText Class="d-flex align-center justify-end mud-width-full mud-height-full">Items Per Page:</MudText>
+                                    </MudItem>
+                                    <MudItem xs="6" Class="d-flex align-center justify-start mud-width-full mud-height-full">
+                                        <MudChipSet T="int" @bind-SelectedValue="_itemsPerPage" CheckMark SelectionMode="@SelectionMode.SingleSelection">
+                                            <MudChip Text="10" Value="10">10</MudChip>
+                                            <MudChip Text="25" Value="25">25</MudChip>
+                                            <MudChip Text="50" Value="50">50</MudChip>
+                                        </MudChipSet>
+
+                                    </MudItem>
+                                </MudGrid>
+                            </MudItem>
+                        </MudGrid>
+                    }
+                </MudStack>
+            </MudItem>
+        </MudGrid>
+    </Authorized>
+    <NotAuthorized>
+        Not logged in, no catalog is available.
+    </NotAuthorized>
+</AuthorizeView>
+
+
+@code {
+    private string _searchString = "";
+    private int _pageSelected = 1;
+    private int _itemsPerPage = 10;
+    private List<ContractItemEditViewModel> _items = new List<ContractItemEditViewModel>();
+    private List<ContractItemEditViewModel>? _itemsToShow = null;
+    private List<Diameter> _allDiameters = new List<Diameter>();
+    private List<Length> _allLengths = new List<Length>();
+    private List<string> _classes = new List<string>();
+    private List<string> _groups = new List<string>();
+    private List<string> _shapes = new List<string>();
+    private List<string> _materials = new List<string>();
+    private List<string> _coatings = new List<string>();
+    private List<string> _threads = new List<string>();
+    private List<string> _specs = new List<string>();
+    private List<string> _lengths = new List<string>();
+    private List<string> _diameters = new List<string>();
+    private List<string> _selectedClasses = new List<string>();
+    private List<string> _selectedGroups = new List<string>();
+    private List<string> _selectedShapes = new List<string>();
+    private List<string> _selectedMaterials = new List<string>();
+    private List<string> _selectedCoatings = new List<string>();
+    private List<string> _selectedThreads = new List<string>();
+    private List<string> _selectedSpecs = new List<string>();
+    private List<string> _selectedLengths = new List<string>();
+    private List<string> _selectedDiameters = new List<string>();
+    private SpecificationFilter _groupFilter;
+    private SpecificationFilter _shapeFilter;
+    private SpecificationFilter _materialFilter;
+    private SpecificationFilter _coatingFilter;
+    private SpecificationFilter _threadFilter;
+    private SpecificationFilter _specFilter;
+    private SpecificationFilter _lengthFilter;
+    private SpecificationFilter _diameterFilter;
+
+
+    public int TotalPages {
+        get {
+            return (_itemsToShow.Count / _itemsPerPage) + 1;
+        }
+    }
+
+    public int ShowStartIndex {
+        get {
+            if (_pageSelected * _itemsPerPage > _itemsToShow.Count)
+                _pageSelected = (_itemsToShow.Count / _itemsPerPage) + 1;
+            return _pageSelected * _itemsPerPage - _itemsPerPage;
+        }
+    }
+
+    public int ShowNumberOfResults {
+        get {
+            if (_pageSelected * _itemsPerPage > _itemsToShow.Count) return _itemsToShow.Count % _itemsPerPage;
+            else return _itemsPerPage;
+        }
+
+    }
+
+    protected override async Task OnInitializedAsync() {
+        _items.Clear();
+        _items = (await contractItemApiService.GetAllAsync())?.ToList();
+        if (_items != null) {
+            _allDiameters = (await diameterApiService.GetAllAsync()).ToList();
+            _allLengths = (await lengthApiService.GetAllAsync()).ToList();
+            _classes = _items.Select(x => x.ClassName).Distinct().OrderBy(c => c.ToString()).ToList();
+            _groups = _items.Select(x => x.GroupName).Distinct().OrderBy(c => c.ToString()).ToList();
+            _materials = _items.Select(x => x.MaterialName).Distinct().OrderBy(m => m.ToString()).ToList();
+            _shapes = _items.Select(x => x.ShapeName).Distinct().OrderBy(s => s.ToString()).ToList();
+            _coatings = _items.Select(x => x.CoatingName).Distinct().OrderBy(c => c.ToString()).ToList();
+            _threads = _items.Select(x => x.ThreadName).Distinct().OrderBy(t => t.ToString()).ToList();
+            _specs = _items.Select(x => x.SpecName).Distinct().OrderBy(s => s.ToString()).ToList();
+            _lengths = _items.Join(_allLengths, c => c.LengthId, l => l.Id, (c, l) => new { Name = $"{c.LengthName}", Value = $"{l.Value}" })
+                .OrderBy(x => x.Value)
+                .Select(x => x.Name).Distinct().ToList();
+            _diameters = _items.Join(_allDiameters, c => c.DiameterId, d => d.Id, (c, d) => new { Name = $"{c.DiameterName}", Value = $"{d.Value}" })
+                .OrderBy(x => x.Value)
+                .Select(x => x.Name).Distinct().ToList();
+
+            _itemsToShow = _items.OrderBy(i => _allDiameters.Where(d => d.Id == i.DiameterId).FirstOrDefault()?.Value).ToList();
+        }
+    }
+
+    private Func<ContractItemEditViewModel, object> _DiameterSort => x => {
+
+        return _allDiameters.FirstOrDefault(a => a.DisplayName == x.DiameterName).Value;
+    };
+
+    private Func<ContractItemEditViewModel, object> _LengthSort => x => {
+        if (x.LengthName == "" || x.LengthName == null) return 0.0;
+        else {
+            return _allLengths.FirstOrDefault(a => a.DisplayName == x.LengthName).Value;
+        }
+    };
+
+    private void Filter() {
+        _itemsToShow = _items;
+        if (_selectedClasses.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedClasses.Any(s => s == i.ClassName)).ToList();
+        if (_selectedGroups.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedGroups.Any(g => g == i.GroupName)).ToList();
+        if (_selectedShapes.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedShapes.Any(s => s == i.ShapeName)).ToList();
+        if (_selectedMaterials.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedMaterials.Any(s => s == i.MaterialName)).ToList();
+        if (_selectedCoatings.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedCoatings.Any(s => s == i.CoatingName)).ToList();
+        if (_selectedThreads.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedThreads.Any(s => s == i.ThreadName)).ToList();
+        if (_selectedSpecs.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedSpecs.Any(s => s == i.SpecName)).ToList();
+        if (_selectedLengths.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedLengths.Any(l => l == i.LengthName)).ToList();
+        if (_selectedDiameters.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedDiameters.Any(d => d == i.DiameterName)).ToList();
+        _itemsToShow = _itemsToShow.Where(i => i.Description.Contains(_searchString, StringComparison.OrdinalIgnoreCase)
+            || i.CustomerStkNo.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(i => _allDiameters.Where(d => d.Id == i.DiameterId).FirstOrDefault()?.Value).ToList();
+    }
+
+    private async Task ClassSelectionChanged(List<string> selections) {
+        _selectedClasses = selections;
+        if (_selectedClasses.Count > 0) {
+            _groups.Clear();
+            _groups = _items.Where(i => _selectedClasses.Any(c => c == i.ClassName)).Select(x => x.GroupName).Distinct().OrderBy(c => c.ToString()).ToList();
+            _shapes = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName)).Select(x => x.ShapeName).Distinct().OrderBy(c => c.ToString()).ToList();
+            //diameters
+            //lengths
+            _materials = _items.Where(i => _selectedClasses.Any(m => m == i.ClassName)).Select(x => x.MaterialName).Distinct().OrderBy(c => c.ToString()).ToList();//materials
+            _coatings = _items.Where(i => _selectedClasses.Any(c => c == i.ClassName)).Select(x => x.CoatingName).Distinct().OrderBy(c => c.ToString()).ToList();//coatings
+            _threads = _items.Where(i => _selectedClasses.Any(t => t == i.ClassName)).Select(x => x.ThreadName).Distinct().OrderBy(c => c.ToString()).ToList();//threads
+            _specs = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName)).Select(x => x.SpecName).Distinct().OrderBy(c => c.ToString()).ToList();//Specs
+            _lengths = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName))
+                .Join(_allLengths, c => c.LengthId, l => l.Id, (c, l) => new { Name = $"{c.LengthName}", Value = $"{l.Value}" })
+                .OrderBy(x => x.Value)
+                .Select(x => x.Name).Distinct().ToList();
+            _diameters = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName))
+                .Join(_allDiameters, c => c.DiameterId, d => d.Id, (c, d) => new { Name = $"{c.DiameterName}", Value = $"{d.Value}" })
+                .OrderBy(x => x.Value)
+                .Select(x => x.Name).Distinct().ToList();
+            _groupFilter.UpdateSpecificaitonList(_groups);
+            _shapeFilter.UpdateSpecificaitonList(_shapes);
+            _materialFilter.UpdateSpecificaitonList(_materials);
+            _coatingFilter.UpdateSpecificaitonList(_coatings);
+            _threadFilter.UpdateSpecificaitonList(_threads);
+            _specFilter.UpdateSpecificaitonList(_specs);
+            _lengthFilter.UpdateSpecificaitonList(_lengths);
+            _diameterFilter.UpdateSpecificaitonList(_diameters);
+            _selectedGroups = new List<string>();
+            _selectedShapes = new List<string>();
+            _selectedMaterials = new List<string>();
+            _selectedCoatings = new List<string>();
+            _selectedThreads = new List<string>();
+            _selectedSpecs = new List<string>();
+            _selectedLengths = new List<string>();
+            _selectedDiameters = new List<string>();
+
+        }
+        Filter();
+    }
+
+    private void GroupSelectionChanged(List<string> selections) {
+        _selectedGroups = selections;
+        Filter();
+    }
+
+    private void ShapeSelectionChanged(List<string> selections) {
+        _selectedShapes = selections;
+        Filter();
+    }
+
+    private void MaterialSelectionChanged(List<string> selections) {
+        _selectedMaterials = selections;
+        Filter();
+    }
+    private void CoatingSelectionChanged(List<string> selections) {
+        _selectedCoatings = selections;
+        Filter();
+    }
+    private void ThreadSelectionChanged(List<string> selections) {
+        _selectedThreads = selections;
+        Filter();
+    }
+    private void SpecSelectionChanged(List<string> selections) {
+        _selectedSpecs = selections;
+        Filter();
+    }
+    private void LengthSelectionChanged(List<string> selections) {
+        _selectedLengths = selections;
+        Filter();
+    }
+    private void DiameterSelectionChanged(List<string> selections) {
+        _selectedDiameters = selections;
+        Filter();
+    }
+
+
+    private void ChangeItemsPerPage(int itemsPerPage) {
+        _itemsPerPage = itemsPerPage;
+        StateHasChanged();
+    }
+}

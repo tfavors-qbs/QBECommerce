@@ -1,0 +1,70 @@
+﻿@inherits LayoutComponentBase
+@using QBExternalWebLibrary.Services.Authentication
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IAccountManagement Acct
+
+<MudThemeProvider Theme="@_theme" IsDarkMode="_isDarkMode" />
+<MudLayout>
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Never" Elevation="2">
+        <NavMenu />        
+    </MudDrawer>
+    <MudAppBar Elevation="1" Fixed="false">
+        @if (!_drawerOpen) {
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" @onclick="DrawerToggle"></MudIconButton>
+        }
+        <MudText Typo="Typo.h5" Class="ml-3">Quality Bolt and Screw</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@(DarkLightModeButtonIcon)" Color="Color.Inherit" OnClick="@DarkModeToggle" />
+        <AuthorizeView>
+            <Authorized>
+                <MudText Class="ma-4">Logged in as @context.User.Identity?.Name.</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit"></MudIconButton>
+                <MudIconButton Variant="Variant.Text" @onclick=Logout Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit"></MudIconButton>
+            </Authorized>
+            <NotAuthorized>
+                <MudText>
+                    <MudIconButton Variant="Variant.Text" Icon="@Icons.Material.Filled.Login" Color="Color.Inherit" Href="/login"></MudIconButton>
+                </MudText>
+            </NotAuthorized>
+        </AuthorizeView>
+    </MudAppBar>
+    <MudMainContent Class="pa-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private MudTheme? _theme = null;
+
+    private bool _drawerOpen = true;
+    private bool _isDarkMode = false;
+    private string hmm;
+
+    protected override async Task OnInitializedAsync() {
+        base.OnInitializedAsync();
+        _theme = new()
+            {
+                LayoutProperties = new LayoutProperties()
+            };
+    }
+
+    private void DrawerToggle() {
+        _drawerOpen = !_drawerOpen;
+    }
+
+    private void DarkModeToggle() {
+        _isDarkMode = !_isDarkMode;
+    }
+
+    private async void Logout() {
+        if (await Acct.CheckAuthenticatedAsync()) {
+            await Acct.LogoutAsync();
+        }
+        StateHasChanged();
+    }
+
+    public string DarkLightModeButtonIcon => _isDarkMode switch {
+        true => Icons.Material.Rounded.AutoMode,
+        false => Icons.Material.Outlined.DarkMode,
+    };
+}

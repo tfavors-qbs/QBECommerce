@@ -1,0 +1,145 @@
+﻿@page "/login"
+@using QBExternalWebLibrary.Services.Http;
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using ShopQualityboltWebBlazor.Components.CustomComponents
+@using QBExternalWebLibrary.Services.Authentication
+@inject IDialogService DialogService
+@inject IAccountManagement Acct
+
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<PageTitle>Quality Bolt and Screw - Login</PageTitle>
+
+
+<MudText Class="my-2" Typo="Typo.h5">Client Portal</MudText>
+<AuthorizeView>
+    <Authorized>
+        <MudText Class="mb-4">Welcome back!</MudText>
+    </Authorized>
+    <NotAuthorized>
+        <MudText Class="mb-4">Welcome to Quality Bolt and Screw client portal, please login!</MudText>
+    </NotAuthorized>
+</AuthorizeView>
+<MudDivider />
+
+<AuthorizeView>
+
+    <Authorized>
+        <MudPaper Class="ma-4 pa-4" MaxWidth="700px">
+            <MudText Typo="Typo.h6" Class="mx-2">Logged In</MudText>
+            <MudStack Class="ma-2 pa-2" Row="true">
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" @onclick=Logout>Logout</MudButton>
+            </MudStack>           
+        </MudPaper>
+    </Authorized>
+
+    <NotAuthorized>
+        <MudPaper Class="ma-4 pa-4" MaxWidth="700px">
+            <MudText Typo="Typo.h6" Class="mx-2">Login</MudText>
+            <MudStack Row="true" Class="pa-2">
+
+                <!--Username textfield-->
+                <MudTextField Label="Username"
+                              @bind-Value="_userName"
+                              Variant="Variant.Outlined">
+                </MudTextField>
+                <!--Password textfield-->
+                <MudTextField Label="Password"
+                              @bind-Value="_password"
+                              Variant="Variant.Outlined"
+                              InputType="@_passwordInputType"
+                              Adornment="Adornment.End"
+                              AdornmentIcon="@_passwordInputIcon"
+                              OnAdornmentClick="ShowPasswordToggle"
+                              AdornmentAriaLabel="Show Password">
+                </MudTextField>
+
+            </MudStack>
+            <MudStack Class="ma-2 pa-2" Row="true">
+                <MudButton Color="Color.Primary" Variant="Variant.Filled" @onclick=Submit>Submit</MudButton>
+                <MudButton Color="Color.Surface" Variant="Variant.Text" @onclick=Register>Register</MudButton>
+            </MudStack>
+            <MudStack>
+                @if (_isLoginError) {
+                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_loginError</MudAlert>
+                }
+            </MudStack>
+        </MudPaper>
+    </NotAuthorized>
+
+</AuthorizeView>
+
+@code {
+    bool _isShow;
+    bool _isLoginError;
+    string _loginError = "";
+    string _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+    InputType _passwordInputType = InputType.Password;
+    private string? _authMessage = "-----------------------------------------------";
+    private string? _userName;
+    private string? _password;
+    private bool _isAuthenticated;
+    private IEnumerable<Claim> claims = Enumerable.Empty<Claim>();
+    private IdentityApiService _identityAPICaller;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        base.OnAfterRender(firstRender);
+        if (firstRender) { }
+    }
+
+
+    void ShowPasswordToggle() {
+        @if (_isShow) {
+            _isShow = false;
+            _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+            _passwordInputType = InputType.Password;
+        } else {
+            _isShow = true;
+            _passwordInputIcon = Icons.Material.Filled.Visibility;
+            _passwordInputType = InputType.Text;
+        }
+    }
+
+    async void Submit() {
+        // var result = await AuthServ.LoginAsync(_userName, _password);
+        var result = await Acct.LoginAsync(_userName, _password);
+        if (!result.Succeeded) {
+            _loginError = string.Join(System.Environment.NewLine, result.ErrorList);
+            _isLoginError = true;
+        } else {
+            _isLoginError = false;
+            _loginError = "";
+        }
+        // bool huh = await Acct.CheckAuthenticatedAsync();
+        // if (result) {
+        //     _authMessage = "LoggedIn";
+        // } else {
+        //     _authMessage = "I Dunno";
+        // }
+        StateHasChanged();
+        // await _identityAPICaller.LoginAsync(_userName, _password);
+
+        // var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        // var user = authState.User;
+        // if (user.Identity is not null && user.Identity.IsAuthenticated) {
+        //     _authMessage = $"{user.Identity.Name} is authenticated.";
+        //     claims = user.Claims;
+        //     _userName = user.FindFirst(c => c.Type == ClaimTypes.Surname)?.Value;
+        // } else {
+        //     _authMessage = "The user is NOT authenticated.";
+        // }
+    }
+
+    async void Register() {
+        var options = new DialogOptions { CloseOnEscapeKey = true };
+        DialogService.Show<RegisterDialog>("Register", options);
+    }
+
+    async void Logout() {
+        await Acct.LogoutAsync();
+    }
+}

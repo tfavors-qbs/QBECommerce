@@ -1,0 +1,130 @@
+﻿@using QBExternalWebLibrary.Services.Http;
+@inject HttpClient HttpClient
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        Provide an email address to register for Quality Bolt and Screw E-Commerce website.
+        
+        <MudTextField Adornment="Adornment.Start"
+            AdornmentIcon="@Icons.Material.Filled.PermIdentity"
+            Label="Given Name"
+            Variant="Variant.Outlined"
+            @bind-Value="_givenName">
+        </MudTextField>
+        <MudTextField Adornment="Adornment.Start"
+            AdornmentIcon="@Icons.Material.Filled.PermIdentity"
+            Label="Family Name"
+            Variant="Variant.Outlined"
+            @bind-Value="_familyName">
+        </MudTextField>
+        <MudTextField 
+            Adornment="Adornment.Start" 
+            AdornmentIcon="@Icons.Material.Filled.Email" 
+            InputType="InputType.Email" 
+            Label="Email Address" 
+            Variant="Variant.Outlined" 
+            @bind-Value="_email">
+        </MudTextField>
+        <MudTextField 
+            Immediate="true"
+            AdornmentColor=@_passwordColor 
+            Adornment="Adornment.Start" 
+            AdornmentIcon="@_passwordInputIcon"
+            OnAdornmentClick="PasswordVisibility"
+            InputType="@_passwordInputType"
+            Label="Password" 
+            Variant="Variant.Outlined" 
+            @bind-Value="_password">
+        </MudTextField>
+        <MudTextField 
+            Immediate="true" 
+            OnKeyUp="OnKeyUp" 
+            AdornmentColor=@_passwordColor 
+            Adornment="Adornment.Start" 
+            AdornmentIcon="@_passwordRepeatInputIcon"
+            OnAdornmentClick="PasswordRepeatVisibility"
+            InputType="@_passwordRepeatInputType"
+            Label="Repeat Password" 
+            Variant="Variant.Outlined" 
+            @bind-Value="_passwordRepeat">
+        </MudTextField>
+        <MudText Color="Color.Error">
+            @_errorMessage
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Submit">Ok</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private string _givenName;
+    private string _familyName;
+    private string _email;
+    private string _password;
+    private string _passwordRepeat;
+    private IdentityApiService _identityAPICaller;
+    private string _errorMessage;
+    private Color _passwordColor = Color.Default;
+    private InputType _passwordInputType = InputType.Password;
+    private InputType _passwordRepeatInputType = InputType.Password;
+    private bool _showPassword, _showPasswordRepeat;
+    private string _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+    private string _passwordRepeatInputIcon = Icons.Material.Filled.VisibilityOff;
+
+    [CascadingParameter] MudDialogInstance _registerDialog { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        base.OnAfterRender(firstRender);
+        if (firstRender) {
+            _identityAPICaller = new IdentityApiService(HttpClient);
+        }
+    }
+
+    void Submit() {
+        if (_password != _passwordRepeat) {
+            _errorMessage = "The passwords are not the same.";
+            return;
+        }
+        _identityAPICaller.RegisterAsync(_email, _password, _givenName, _familyName);
+        _registerDialog.Close(DialogResult.Ok(true));
+    }
+
+    void Cancel() {
+        _registerDialog.Cancel();
+    }
+
+    void OnKeyUp() {
+        if (_password != _passwordRepeat) {
+            _passwordColor = Color.Error;
+            _errorMessage = "The passwords are not the same.";
+        } else {
+            _passwordColor = Color.Default;
+            _errorMessage = "";
+        }
+    }
+
+    void PasswordVisibility() {
+        _showPassword = !_showPassword;
+        if (_showPassword) {
+            _passwordInputIcon = Icons.Material.Filled.Visibility;
+            _passwordInputType = InputType.Text;
+        } else {
+            _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
+            _passwordInputType = InputType.Password;
+        }
+    }
+
+    void PasswordRepeatVisibility() {
+        _showPasswordRepeat = !_showPasswordRepeat;
+        if (_showPasswordRepeat) {
+            _passwordRepeatInputIcon = Icons.Material.Filled.Visibility;
+            _passwordRepeatInputType = InputType.Text;
+        } else {
+            _passwordRepeatInputIcon = Icons.Material.Filled.VisibilityOff;
+            _passwordRepeatInputType = InputType.Password;
+        }
+    }
+}

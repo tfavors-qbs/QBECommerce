@@ -1,0 +1,22 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Welcome</h1>
+    <h2>Products</h2>
+    @Html.ActionLink("SKUs", "Index", "SKU")
+    @Html.ActionLink("ProductIDs", "Index", "ProductID")
+    @Html.ActionLink("Classes", "Index", "Class")
+    @Html.ActionLink("Groups", "Index", "Group")
+    @Html.ActionLink("Shapes", "Index", "Shape")
+    @Html.ActionLink("Materials", "Index", "Material")
+    @Html.ActionLink("Coatings", "Index", "Coating")
+    @Html.ActionLink("Threads", "Index", "Thread")
+    @Html.ActionLink("Specs", "Index", "Spec")
+    @Html.ActionLink("Diameters", "Index", "Diameter")
+    @Html.ActionLink("Lengths", "Index", "Length")
+    <h2>Other</h2>
+    @Html.ActionLink("Clients", "Index", "Clients")
+    @Html.ActionLink("ContractItems", "Index", "ContractItem")
+</div>

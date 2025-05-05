@@ -1,0 +1,94 @@
+﻿@using QBExternalWebLibrary.Models.Products
+
+<MudPaper Class="pa-4">
+    <MudStack>
+        <MudExpansionPanel>
+            <TitleContent>
+                <MudText Typo="Typo.body1">@Title</MudText>
+                    @foreach (var item in _selectableSpecs) {
+                    if (item._selected) {
+                        <MudChip T="string" Variant="Variant.Outlined" OnClose="@(() => Closed(item._spec))">@item._spec</MudChip>
+                    }
+                }
+            </TitleContent>
+            <ChildContent>
+                @if (_selectableSpecs.Count == 0)
+                {
+                    <MudText>N/A</MudText>
+                }
+                @foreach (SelectableSpec spec in _selectableSpecs) {
+                    <MudSwitch T="bool" Value="spec._selected" Label="@spec._spec" ValueChanged="@((bool val) => ValueChangeda(val, spec._spec))" Color="Color.Primary"></MudSwitch>
+                }
+            </ChildContent>
+        </MudExpansionPanel>
+    </MudStack>
+</MudPaper>
+
+@code {
+
+    public class SelectableSpec {
+        public bool _selected = false;
+        public string _spec = null;
+    }
+
+    [Parameter]
+    public bool MultiSelect { get; set; }
+    [Parameter]
+    public string Title { get; set; }
+    [Parameter]
+    public List<string> Specifications { get; set; }
+    [Parameter]
+    public EventCallback<List<string>> SelectionChanged { get; set; }
+
+    public List<SelectableSpec> _selectableSpecs = null;
+    private List<string> specs = null;
+
+    protected override async Task OnInitializedAsync() {
+        _selectableSpecs = new List<SelectableSpec>();
+        foreach (string spec in Specifications) {
+            SelectableSpec selectableSpec = new SelectableSpec {
+                    _spec = spec,
+                    _selected = false
+                };
+            _selectableSpecs.Add(selectableSpec);
+        }
+    }
+
+    /// <summary>
+    /// Fill list of selected specs, if none selected: return all, if not multiselect remove all from being selected and only add the newly selected.
+    /// </summary>
+    /// <param name="test">The new value for selected spec.</param>
+    /// <param name="specName">The name of the spec who's selection is being changed.</param>
+    /// <returns></returns>
+    private async Task ValueChangeda(bool test, string specName) {
+        List<string> selectedSpecs = new List<string>();
+        List<string> allSpecs = new List<string>();
+        if (test && !MultiSelect) _selectableSpecs.ForEach(x => x._selected = false);
+        _selectableSpecs.Where(s => s._spec == specName).FirstOrDefault()._selected = test;
+        foreach (var item in _selectableSpecs) {
+            if (item._selected) {
+                selectedSpecs.Add(item._spec);
+            }
+            allSpecs.Add(item._spec);
+        }
+
+        if (selectedSpecs.Count == 0) await SelectionChanged.InvokeAsync(allSpecs);
+        else await SelectionChanged.InvokeAsync(selectedSpecs);
+    }
+
+    private async Task Closed(string specName) {
+        ValueChangeda(false, specName);
+    }
+
+    public void UpdateSpecificaitonList(List<string> specs) {
+        Specifications = specs;
+        _selectableSpecs = new List<SelectableSpec>();
+        foreach (string spec in Specifications) {
+            SelectableSpec selectableSpec = new SelectableSpec {
+                    _spec = spec,
+                    _selected = false
+                };
+            _selectableSpecs.Add(selectableSpec);
+        }
+    }
+}

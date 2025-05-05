@@ -1,0 +1,15 @@
+﻿@using Microsoft.AspNetCore.Components.Authorization
+<MudNavMenu>
+    <MudText Typo="Typo.h6" Class="px-4">Quality Bolt and Screw</MudText>
+    <MudText Typo="Typo.body2" Class="px-4 mud-text-secondary">E-Commerce</MudText>
+    <MudDivider Class="my-2" />
+    <MudNavLink Href="login" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Person">Login</MudNavLink>
+    <AuthorizeView>
+        <Authorized>
+            <MudNavLink Href="catalog" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Shop">Catalog</MudNavLink>
+        </Authorized>
+    </AuthorizeView>
+    <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+    <MudNavLink Href="counter" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Add">Counter</MudNavLink>
+    <MudNavLink Href="weather" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.List">Weather</MudNavLink>
+</MudNavMenu>
