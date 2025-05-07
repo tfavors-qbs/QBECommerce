@@ -22,10 +22,10 @@
 <AuthorizeView>
     <Authorized>
         <MudGrid>
-            <MudItem xs="12" sm="12" md="12" lg="4" xl="3">
+            <MudItem xs="12" sm="12" md="12" lg="3" xl="3">
                 <MudPaper Class="pa-4 d-flex flex-column overflow-x-auto" MaxHeight="@((15*_itemsPerPage).ToString() + "vh")">
                     <MudStack>
-                        <MudText Typo="Typo.h4">Filters</MudText>
+                        <MudText Typo="Typo.h5">Filters</MudText>
                         @if (_classes != null && _classes.Count != 0) {
                             <SpecificationFilter SelectionChanged="ClassSelectionChanged" Title="Classes" Specifications="_classes" MultiSelect="false"></SpecificationFilter>
                         }
@@ -54,12 +54,12 @@
                     </MudStack>
                 </MudPaper>
             </MudItem>
-            <MudItem xs="12" sm="12" md="12" lg="8" xl="9">
+            <MudItem xs="12" sm="12" md="12" lg="9" xl="9">
                 <MudStack>
                     <MudPaper Class="mb-4 pa-4" Elevation="2">
                         <MudGrid Class="d-flex align-end">
                             <MudItem xs="12">
-                                <MudText Typo="Typo.h4">@context.User.Claims.Where(x => x.Type == "ClientName").FirstOrDefault().Value - Catalog Items</MudText>
+                                <MudText Typo="Typo.h5">@context.User.Claims.Where(x => x.Type == "ClientName").FirstOrDefault().Value - Catalog Items</MudText>
                             </MudItem>
                             <MudItem xs="2"><MudText>Results: @_itemsToShow?.Count</MudText></MudItem>
                             <MudItem xs="10"><MudTextField @bind-Value="_searchString" Immediate="true" TextChanged="@Filter" Label="Quick Filter"></MudTextField></MudItem>

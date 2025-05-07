@@ -12,18 +12,18 @@
         @if (!_drawerOpen) {
             <MudIconButton Icon="@Icons.Material.Filled.Menu" @onclick="DrawerToggle"></MudIconButton>
         }
-        <MudText Typo="Typo.h5" Class="ml-3">Quality Bolt and Screw</MudText>
+        @* <MudText Typo="Typo.h5" Class="ml-3">Quality Bolt and Screw</MudText> *@
         <MudSpacer />
-        <MudIconButton Icon="@(DarkLightModeButtonIcon)" Color="Color.Inherit" OnClick="@DarkModeToggle" />
+        @* <MudIconButton Icon="@(DarkLightModeButtonIcon)" Color="Color.Inherit" OnClick="@DarkModeToggle" /> *@
         <AuthorizeView>
             <Authorized>
                 <MudText Class="ma-4">Logged in as @context.User.Identity?.Name.</MudText>
                 <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit"></MudIconButton>
-                <MudIconButton Variant="Variant.Text" @onclick=Logout Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit"></MudIconButton>
+                <MudButton Variant="Variant.Text" @onclick=Logout StartIcon="@Icons.Material.Filled.Logout" Color="Color.Inherit">Logout</MudButton>
             </Authorized>
             <NotAuthorized>
                 <MudText>
-                    <MudIconButton Variant="Variant.Text" Icon="@Icons.Material.Filled.Login" Color="Color.Inherit" Href="/login"></MudIconButton>
+                    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Login" Color="Color.Inherit" Href="/login">Login</MudButton>
                 </MudText>
             </NotAuthorized>
         </AuthorizeView>
