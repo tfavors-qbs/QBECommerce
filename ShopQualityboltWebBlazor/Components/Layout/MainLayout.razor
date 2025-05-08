@@ -22,7 +22,7 @@
         <AuthorizeView>
             <Authorized>
                 <MudText Class="ma-4">Logged in as @context.User.Identity?.Name.</MudText>
-                <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit"></MudIconButton>
+                <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" Href="/cart"></MudIconButton>
                 <MudButton Variant="Variant.Text" @onclick=Logout StartIcon="@Icons.Material.Filled.Logout" Color="Color.Inherit">Logout</MudButton>
             </Authorized>
             <NotAuthorized>
