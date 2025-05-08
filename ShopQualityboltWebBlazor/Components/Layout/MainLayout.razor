@@ -3,6 +3,10 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IAccountManagement Acct
 
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
 <MudThemeProvider Theme="@_theme" IsDarkMode="_isDarkMode" />
 <MudLayout>
     <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Never" Elevation="2">
