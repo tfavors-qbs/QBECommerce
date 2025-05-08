@@ -13,4 +13,9 @@ namespace QBExternalWebLibrary.Models.Catalog
         public ApplicationUser ApplicationUser { get; set; }
         public List<ShoppingCartItem>? ShoppingCartItems { get; set; }
     }
+
+    public class ShoppingCartEVM {
+        public int ID { get; set; }
+        public int ApplicationUserId { get; set; } = 0;
+    }
 }

@@ -13,4 +13,11 @@ namespace QBExternalWebLibrary.Models.Catalog {
         public ContractItem ContractItem { get; set; }
         public int Quantity { get; set; }
     }
+
+    public class ShoppingCartItemEVM {
+        public int Id { get; set; }
+        public int ShoppingCartId { get; set; }
+        public int ContractItemId { get; set; }
+        public int Quantity { get; set; }
+    }
 }
