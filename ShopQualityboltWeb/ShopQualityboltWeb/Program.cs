@@ -13,6 +13,7 @@ using QBExternalWebLibrary.Services.Model;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
+using QBExternalWebLibrary.Models.Catalog;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -77,6 +78,14 @@ builder.Services.AddScoped<IModelMapper<ProductID, ProductIDEditViewModel>, Prod
 builder.Services.AddScoped<IRepository<ContractItem>, ContractItemEFRepository>();
 builder.Services.AddScoped<IModelService<ContractItem, ContractItemEditViewModel?>, ModelService<ContractItem, ContractItemEditViewModel?>>();
 builder.Services.AddScoped<IModelMapper<ContractItem, ContractItemEditViewModel>, ContractItemMapper>();
+
+builder.Services.AddScoped<IRepository<ShoppingCart>, ShoppingCartEFRepository>();
+builder.Services.AddScoped<IModelService<ShoppingCart, ShoppingCartEVM?>, ModelService<ShoppingCart, ShoppingCartEVM?>>();
+builder.Services.AddScoped<IModelMapper<ShoppingCart, ShoppingCartEVM>, ShoppingCartMapper>();
+
+builder.Services.AddScoped<IRepository<ShoppingCartItem>, ShoppingCartItemEFRepository>();
+builder.Services.AddScoped<IModelService<ShoppingCartItem, ShoppingCartItemEVM?>, ModelService<ShoppingCartItem, ShoppingCartItemEVM?>>();
+builder.Services.AddScoped<IModelMapper<ShoppingCartItem, ShoppingCartItemEVM>, ShoppingCartItemMapper>();
 
 var app = builder.Build();
 
