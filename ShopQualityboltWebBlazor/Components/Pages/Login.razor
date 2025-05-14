@@ -40,18 +40,18 @@
 
                 <!--Username textfield-->
                 <MudTextField Label="Username"
-                              @bind-Value="_userName"
-                              Variant="Variant.Outlined">
+                @bind-Value="_userName"
+                Variant="Variant.Outlined">
                 </MudTextField>
                 <!--Password textfield-->
                 <MudTextField Label="Password"
-                              @bind-Value="_password"
-                              Variant="Variant.Outlined"
-                              InputType="@_passwordInputType"
-                              Adornment="Adornment.End"
-                              AdornmentIcon="@_passwordInputIcon"
-                              OnAdornmentClick="ShowPasswordToggle"
-                              AdornmentAriaLabel="Show Password">
+                @bind-Value="_password"
+                Variant="Variant.Outlined"
+                InputType="@_passwordInputType"
+                Adornment="Adornment.End"
+                AdornmentIcon="@_passwordInputIcon"
+                OnAdornmentClick="ShowPasswordToggle"
+                AdornmentAriaLabel="Show Password">
                 </MudTextField>
 
             </MudStack>
