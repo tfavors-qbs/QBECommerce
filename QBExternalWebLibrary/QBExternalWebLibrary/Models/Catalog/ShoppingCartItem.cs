@@ -18,6 +18,7 @@ namespace QBExternalWebLibrary.Models.Catalog {
         public int Id { get; set; }
         public int ShoppingCartId { get; set; }
         public int ContractItemId { get; set; }
+        public ContractItemEditViewModel ContractItemEditViewModel { get; set; }
         public int Quantity { get; set; }
     }
 }
