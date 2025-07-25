@@ -20,5 +20,17 @@ namespace QBExternalWebLibrary.Models.Catalog {
         public int ContractItemId { get; set; }
         public ContractItemEditViewModel ContractItemEditViewModel { get; set; }
         public int Quantity { get; set; }
+
+        public ShoppingCartItemEVM Copy() 
+        {
+            return new ShoppingCartItemEVM()
+            {
+                Id = Id,
+                ShoppingCartId = ShoppingCartId,
+                ContractItemId = ContractItemId,
+                ContractItemEditViewModel = ContractItemEditViewModel, //TODO: could maybe not be a good idea
+                Quantity = Quantity
+            };
+        }
     }
 }

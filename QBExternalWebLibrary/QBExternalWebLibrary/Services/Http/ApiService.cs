@@ -10,12 +10,13 @@ using QBExternalWebLibrary.Models;
 using QBExternalWebLibrary.Models.Products;
 using Thread = QBExternalWebLibrary.Models.Products.Thread;
 using System.Net;
+using QBExternalWebLibrary.Models.Catalog;
 
 namespace QBExternalWebLibrary.Services.Http
 {
     public class ApiService<TEntity, TModel> : IApiService<TEntity, TModel>
     {
-        private readonly HttpClient _httpClient;
+        protected readonly HttpClient _httpClient;
         private readonly Dictionary<Type, string> _endpointMappings = new Dictionary<Type, string>() {
             {typeof(Class), "api/classes" },
             {typeof(Client), "api/clients" },
@@ -30,8 +31,10 @@ namespace QBExternalWebLibrary.Services.Http
             {typeof(SKU), "api/skus" },
             {typeof(Spec), "api/specs" },
             {typeof(Thread), "api/threads" },
-        };
-        private string _endpoint = "";
+			{typeof(ShoppingCart), "api/shoppingcarts" },
+			{typeof(ShoppingCartItem), "api/shoppingcartitems" },
+		};
+        protected string _endpoint = "";
 
         public ApiService(IHttpClientFactory httpClientFactory)
         {

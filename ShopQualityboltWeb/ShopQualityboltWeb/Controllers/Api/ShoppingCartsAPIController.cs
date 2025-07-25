@@ -7,6 +7,7 @@ using QBExternalWebLibrary.Models;
 using QBExternalWebLibrary.Models.Mapping;
 using QBExternalWebLibrary.Models.Pages;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace ShopQualityboltWeb.Controllers.Api {
 
@@ -14,7 +15,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
     [Route("api/shoppingcarts")]
     [ApiController]
     public class ShoppingCartsAPIController : Controller {
-        private readonly IModelService<ShoppingCart, ShoppingCartEVM?> _service;
+        private readonly IModelService<ShoppingCart, ShoppingCartEVM> _service;
         private readonly IModelMapper<ShoppingCart, ShoppingCartEVM> _mapper;
         private readonly IModelMapper<ContractItem, ContractItemEditViewModel> _contractItemMapper;
         private readonly UserManager<ApplicationUser> _userManager;
@@ -50,7 +51,8 @@ namespace ShopQualityboltWeb.Controllers.Api {
             if (userId == null) return Unauthorized(new { message = "User is not authenticated." });
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return NotFound(new { message = "User not found." });
-            if (user.ShoppingCartId == null) {
+            var usersShoppingCart = _service.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
+            if (usersShoppingCart == null) {
                 ShoppingCartEVM cart = new ShoppingCartEVM() { ApplicationUserId = user.Id };
                 _service.Create(null, cart);
                 return CreatedAtAction("GetShoppingCart", new { id = cart.Id }, cart);
@@ -69,7 +71,8 @@ namespace ShopQualityboltWeb.Controllers.Api {
             if (userId == null) return Unauthorized(new { message = "User is not authenticated." });
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return NotFound(new { message = "User not found." });
-            if (user.ShoppingCartId == null) {
+			var usersShoppingCart = _service.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
+			if (usersShoppingCart == null) {
                 ShoppingCartEVM cart = new ShoppingCartEVM() { ApplicationUserId = user.Id };
                 _service.Create(null, cart);
             }
@@ -90,22 +93,37 @@ namespace ShopQualityboltWeb.Controllers.Api {
             if (user == null)
                 return NotFound(new { message = "User not found." });
 
-            // Ensure user has a shopping cart
-            if (user.ShoppingCartId == null) {
+			// Ensure user has a shopping cart
+			var usersShoppingCart = _service.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
+			if (usersShoppingCart == null) {
                 ShoppingCartEVM cart = new ShoppingCartEVM { ApplicationUserId = user.Id };
-                _service.Create(null, cart);
-                user.ShoppingCartId = cart.Id; // Assuming _service.Create sets cart.Id
-                await _userManager.UpdateAsync(user);
-            }
+                usersShoppingCart = _service.Create(null, cart);
+
+				// Check creation worked
+				if (usersShoppingCart == null)
+				{
+                    return NotFound(new { message = "Shopping cart for user could not be found or created" }); //TODO: may need to return a different Result Object than NotFound
+				}
+			}
 
             // Validate ContractItem
             var contractItem = _contractItemService.Find(c => c.Id == model.ContractItemId && c.ClientId == user.ClientId).FirstOrDefault();
             if (contractItem == null)
                 return BadRequest(new { message = "Invalid or unauthorized ContractItem." });
 
-            // Create ShoppingCartItem
-            var cartItem = new ShoppingCartItem {
-                ShoppingCartId = user.ShoppingCartId.Value,
+            var usersShoppingCartItems = _shoppingcartItemService.Find(a => a.ShoppingCartId == usersShoppingCart.Id);
+            if(usersShoppingCartItems != null)
+            {
+                bool cartItemForContractIdExists = usersShoppingCartItems.Count(a => a.ContractItemId == model.ContractItemId) > 0;
+				if (cartItemForContractIdExists)
+                {
+					return BadRequest(new { message = "Cannot add a new contract item to shopping cart where contract item already exists. Use Update instead." });
+				}
+            }
+
+			// Create ShoppingCartItem
+			var cartItem = new ShoppingCartItem {
+                ShoppingCartId = usersShoppingCart.Id,
                 ContractItemId = model.ContractItemId,
                 Quantity = model.Quantity
             };
@@ -124,7 +142,10 @@ namespace ShopQualityboltWeb.Controllers.Api {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
                 return NotFound(new { message = "User not found." });
-            var cartItem = _shoppingcartItemService.Find(i => i.Id == id && i.ShoppingCartId == user.ShoppingCartId).FirstOrDefault();
+			var usersShoppingCart = _service.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
+			if (usersShoppingCart == null)
+				return NotFound(new { message = "Users cart not found" });
+			var cartItem = _shoppingcartItemService.Find(i => i.Id == id && i.ShoppingCartId == usersShoppingCart.Id).FirstOrDefault();
             if (cartItem == null)
                 return NotFound(new { message = "Cart item not found or not authorized." });
             cartItem.Quantity = model.Quantity;
@@ -140,7 +161,10 @@ namespace ShopQualityboltWeb.Controllers.Api {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
                 return NotFound(new { message = "User not found." });
-            var cartItem = _shoppingcartItemService.Find(i => i.Id == id && i.ShoppingCartId == user.ShoppingCartId).FirstOrDefault();
+			var usersShoppingCart = _service.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
+			if (usersShoppingCart == null)
+				return NotFound(new { message = "Users cart not found" });
+			var cartItem = _shoppingcartItemService.Find(i => i.Id == id && i.ShoppingCartId == usersShoppingCart.Id).FirstOrDefault();
             if (cartItem == null)
                 return NotFound(new { message = "Cart item not found or not authorized." });
             _shoppingcartItemService.Delete(cartItem);
@@ -150,19 +174,25 @@ namespace ShopQualityboltWeb.Controllers.Api {
         #region Helpers
         private async Task<ShoppingCartPageEVM> GetCartPageEVM(ApplicationUser user) {
             var pageInfo = new ShoppingCartPageEVM();
-            pageInfo.ShoppingCartEVM = _mapper.MapToEdit(user.ShoppingCart);
-            var cartItems = _shoppingcartItemService.Find(i => i.ShoppingCartId.Equals(user.ShoppingCartId)).ToList();
-            var contractItems = _contractItemService.Find(c => c.ClientId == user.ClientId).ToList();
-            pageInfo.ShoppingCartItemEVMs = (from cartItem in cartItems
-                                             join contractItem in contractItems
-                                             on cartItem.ContractItemId equals contractItem.Id
-                                             select new ShoppingCartItemEVM {
-                                                 Id = cartItem.Id,
-                                                 ShoppingCartId = cartItem.ShoppingCartId,
-                                                 ContractItemId = cartItem.ContractItemId,
-                                                 ContractItemEditViewModel = _contractItemMapper.MapToEdit(contractItem),
-                                                 Quantity = cartItem.Quantity
-                                             }).ToList();
+			var usersShoppingCart = _service.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
+			if (usersShoppingCart != null)
+            {
+				pageInfo.ShoppingCartEVM = _mapper.MapToEdit(usersShoppingCart);
+				var cartItems = _shoppingcartItemService.Find(i => i.ShoppingCartId.Equals(usersShoppingCart.Id)).ToList();
+				var contractItems = _contractItemService.Find(c => c.ClientId == user.ClientId).ToList();
+				pageInfo.ShoppingCartItemEVMs = (from cartItem in cartItems
+												 join contractItem in contractItems
+												 on cartItem.ContractItemId equals contractItem.Id
+												 select new ShoppingCartItemEVM
+												 {
+													 Id = cartItem.Id,
+													 ShoppingCartId = cartItem.ShoppingCartId,
+													 ContractItemId = cartItem.ContractItemId,
+													 ContractItemEditViewModel = _contractItemMapper.MapToEdit(contractItem),
+													 Quantity = cartItem.Quantity
+												 }).ToDictionary(a => a.ContractItemId);
+			}
+			
             return pageInfo;
         }
         #endregion

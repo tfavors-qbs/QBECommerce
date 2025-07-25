@@ -1,6 +1,7 @@
 ﻿@inherits LayoutComponentBase
 @using QBExternalWebLibrary.Services.Authentication
 @using Microsoft.AspNetCore.Components.Authorization
+@using ShopQualityboltWebBlazor.Components.Pages
 @inject IAccountManagement Acct
 
 <MudPopoverProvider />
@@ -10,20 +11,25 @@
 <MudThemeProvider Theme="@_theme" IsDarkMode="_isDarkMode" />
 <MudLayout>
     <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Never" Elevation="2">
-        <NavMenu />        
+        <NavMenu />
     </MudDrawer>
+    <MudPopover Open="@_cartOverlayOpen" AnchorOrigin="Origin.TopRight" TransformOrigin="Origin.TopRight">
+        <MudPaper Elevation="2" Style="min-width: 600px; height: 93vh; overflow-y: auto; padding: 16px; position: fixed; bottom: 0; right: 0;">
+            <Cart />
+        </MudPaper>
+    </MudPopover>
+    <MudOverlay Visible="@_cartOverlayOpen" AutoClose="true" OnClosed="@(() => ToggleCartPopover())" DarkBackground="true" Class="mud-skip-overlay-section" />
     <MudAppBar Elevation="1" Fixed="false">
-        @if (!_drawerOpen) {
-            <MudIconButton Icon="@Icons.Material.Filled.Menu" @onclick="DrawerToggle"></MudIconButton>
+        @if (!_drawerOpen)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" @onclick="DrawerToggle" />
         }
-        @* <MudText Typo="Typo.h5" Class="ml-3">Quality Bolt and Screw</MudText> *@
         <MudSpacer />
-        @* <MudIconButton Icon="@(DarkLightModeButtonIcon)" Color="Color.Inherit" OnClick="@DarkModeToggle" /> *@
         <AuthorizeView>
             <Authorized>
                 <MudText Class="ma-4">Logged in as @context.User.Identity?.Name.</MudText>
-                <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" Href="/cart"></MudIconButton>
-                <MudButton Variant="Variant.Text" @onclick=Logout StartIcon="@Icons.Material.Filled.Logout" Color="Color.Inherit">Logout</MudButton>
+                <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" OnClick="@ToggleCartPopover" />
+                <MudButton Variant="Variant.Text" @onclick="Logout" StartIcon="@Icons.Material.Filled.Logout" Color="Color.Inherit">Logout</MudButton>
             </Authorized>
             <NotAuthorized>
                 <MudText>
@@ -39,12 +45,12 @@
 
 @code {
     private MudTheme? _theme = null;
-
     private bool _drawerOpen = true;
     private bool _isDarkMode = false;
-    private string hmm;
+    private bool _cartOverlayOpen = false;
 
-    protected override async Task OnInitializedAsync() {
+    protected override async Task OnInitializedAsync()
+    {
         base.OnInitializedAsync();
         _theme = new()
             {
@@ -52,22 +58,32 @@
             };
     }
 
-    private void DrawerToggle() {
+    private void DrawerToggle()
+    {
         _drawerOpen = !_drawerOpen;
     }
 
-    private void DarkModeToggle() {
+    private void ToggleCartPopover()
+    {
+        _cartOverlayOpen = !_cartOverlayOpen;
+    }
+
+    private void DarkModeToggle()
+    {
         _isDarkMode = !_isDarkMode;
     }
 
-    private async void Logout() {
-        if (await Acct.CheckAuthenticatedAsync()) {
+    private async void Logout()
+    {
+        if (await Acct.CheckAuthenticatedAsync())
+        {
             await Acct.LogoutAsync();
         }
         StateHasChanged();
     }
 
-    public string DarkLightModeButtonIcon => _isDarkMode switch {
+    public string DarkLightModeButtonIcon => _isDarkMode switch
+    {
         true => Icons.Material.Rounded.AutoMode,
         false => Icons.Material.Outlined.DarkMode,
     };

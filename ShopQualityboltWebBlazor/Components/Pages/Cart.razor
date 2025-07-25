@@ -1,19 +1,159 @@
-﻿@page "/cart"
-
+﻿@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using QBExternalWebLibrary.Models.Catalog
+@using QBExternalWebLibrary.Models.Pages
 @using QBExternalWebLibrary.Services.Authentication
+@using ShopQualityboltWebBlazor.Services
 @inject IDialogService DialogService
 @inject IAccountManagement Acct
-
-
-
-<PageTitle>ShoppingCart</PageTitle>
+@inject ShoppingCartManagementService ShoppingCartManagementService
+@inject NavigationManager NavigationManager
+@implements IDisposable
 
 <MudText Class="my-2" Typo="Typo.h5">Shopping Cart</MudText>
-<MudDivider/>
-<h3>Cart</h3>
+<AuthorizeView>
+    <Authorized>
+        @if (ShoppingCartManagementService.UsersShoppingCartEVM == null)
+        {
+            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">No shopping cart found for user</MudAlert>
+        }
+        else if (ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs == null || !ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Any())
+        {
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Your cart is empty</MudAlert>
+        }
+        else
+        {
+            <MudContainer Style="height: 4px; margin-bottom: 8px;">
+                @if (isLoading)
+                {
+                    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+                }
+            </MudContainer>
+            <MudTable Items="ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Values" Dense="true" Hover="true" Striped="true" AllowUnsorted="false">
+                <HeaderContent>
+                    <MudTh>Stock Number</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Price</MudTh>
+                    <MudTh>Quantity</MudTh>
+                    <MudTh>Total</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="item">
+                    <MudTd>@item.ContractItemEditViewModel.CustomerStkNo</MudTd>
+                    <MudTd>@item.ContractItemEditViewModel.Description</MudTd>
+                    <MudTd>@item.ContractItemEditViewModel.Price.ToString("C")</MudTd>
+                    <MudTd>
+                        <MudNumericField @bind-Value="item.Quantity" @bind-Value:after="@(() => UpdateQuantity(item))" Min="1" DebounceInterval="500" Variant="Variant.Outlined" Disabled="@isLoading" />
+                    </MudTd>
+                    <MudTd>@((item.Quantity * item.ContractItemEditViewModel.Price).ToString("C"))</MudTd>
+                    <MudTd>
+                        <MudButton Color="Color.Error" OnClick="@(() => RemoveItem(item))" Disabled="@isLoading">
+                            <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Class="mr-2" />Remove
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            <MudGrid Class="mt-4">
+                <MudItem xs="12" Class="d-flex flex-column" Style="align-items: flex-end;">
+                    <div class="d-flex">
+                        <MudText Class="mr-4">Total Quantity: @totalQuantity</MudText>
+                        <MudText Class="mr-4">Total Items: @totalItems</MudText>
+                        <MudText>Total Price: @totalPrice.ToString("C")</MudText>
+                    </div>
+                    <div class="d-flex mt-2">
+                        <MudButton Color="Color.Primary" OnClick="ProceedToCheckout" Disabled="@isLoading" Class="mr-2">
+                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Small" Class="mr-2" />Proceed to Checkout
+                        </MudButton>
+                        <MudButton Color="Color.Secondary" OnClick="ClearCart" Disabled="@isLoading">
+                            <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Class="mr-2" />Clear Cart
+                        </MudButton>
+                    </div>
+                </MudItem>
+            </MudGrid>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">Must login to manage shopping cart</MudAlert>
+    </NotAuthorized>
+</AuthorizeView>
+<MudDivider />
 
 @code {
+    private bool isLoading;
+    private int totalQuantity => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Sum(item => item.Value.Quantity) ?? 0;
+    private int totalItems => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Count() ?? 0;
+    private decimal totalPrice => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Sum(item => item.Value.Quantity * item.Value.ContractItemEditViewModel.Price) ?? 0m;
 
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        ShoppingCartManagementService.UsersShoppingCartEVMChanged += OnUserShoppingCartChanged;
+    }
 
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        if (ShoppingCartManagementService.UsersShoppingCartEVM == null)
+        {
+            isLoading = true;
+            await ShoppingCartManagementService.RefreshUserShoppingCart();
+            isLoading = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        ShoppingCartManagementService.UsersShoppingCartEVMChanged -= OnUserShoppingCartChanged;
+    }
+
+    private void OnUserShoppingCartChanged(ShoppingCartPageEVM shoppingCart)
+    {
+        StateHasChanged();
+    }
+
+    private async Task UpdateQuantity(ShoppingCartItemEVM item)
+    {
+        isLoading = true;
+        await ShoppingCartManagementService.UpdateItemAsync(item);
+        isLoading = false;
+    }
+
+    private async Task RemoveItem(ShoppingCartItemEVM item)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Confirm Removal",
+            $"Are you sure you want to remove {item.ContractItemEditViewModel.CustomerStkNo} - {item.ContractItemEditViewModel.Description} from your cart?",
+            yesText: "Remove", cancelText: "Cancel",
+            options: new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (result == true)
+        {
+            isLoading = true;
+            await ShoppingCartManagementService.DeleteItemAsync(item);
+            isLoading = false;
+        }
+    }
+
+    private async Task ClearCart()
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Confirm Clear Cart",
+            "Are you sure you want to clear your entire cart?",
+            yesText: "Clear Cart", cancelText: "Cancel",
+            options: new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        if (result == true)
+        {
+            isLoading = true;
+            foreach (var item in ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs)
+            {
+                await ShoppingCartManagementService.DeleteItemAsync(item.Value);
+            }
+            isLoading = false;
+        }
+    }
+
+    private void ProceedToCheckout()
+    {
+        NavigationManager.NavigateTo("/checkout");
+    }
 }
-

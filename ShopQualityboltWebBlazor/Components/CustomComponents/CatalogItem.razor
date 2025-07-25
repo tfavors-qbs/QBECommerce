@@ -1,9 +1,11 @@
 ﻿@using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Models.Catalog
+@using QBExternalWebLibrary.Models.Mapping
+@using ShopQualityboltWebBlazor.Services
+@inject ShoppingCartManagementService ShoppingCartManagementService;
 
 <MudPaper Class="pa-4 mb-3" Elevation="2">
     <MudGrid>
-
-        
         <MudItem xs="12" sm="12" md="12" lg="8" xl="10">
             <MudGrid>
                 <MudItem xs="3"><MudText Align="Align.Left">Customer Stk No:</MudText></MudItem>
@@ -14,17 +16,42 @@
         </MudItem>
         <MudItem xs="12" sm="12" md="12" lg="4" xl="2">
             <MudStack>
-                <MudNumericField Variant="Variant.Outlined" @bind-Value="@_orderQuantity"></MudNumericField>
-                <MudButton StartIcon="@Icons.Material.TwoTone.AddShoppingCart" Variant="Variant.Filled" Color="Color.Tertiary">Add To Cart</MudButton>
+                <MudNumericField Min="@(_isExistingItemInCart ? 0 : 1)" Variant="Variant.Outlined" @bind-Value="@OrderQuantity"></MudNumericField>
+                <MudButton StartIcon="@Icons.Material.TwoTone.AddShoppingCart" Variant="Variant.Filled" Color="@(_isExistingItemInCart ? OrderQuantity == 0 ? Color.Error : Color.Warning : Color.Tertiary)" OnClick="UpdateItemToCart">@_editButtonText</MudButton>
             </MudStack>
         </MudItem>
     </MudGrid>
 </MudPaper>
 
 @code {
-    public int _orderQuantity = 1;
+    [Parameter]
+    public int OrderQuantity { get; set; } = 1;
 
     [Parameter]
     public ContractItemEditViewModel Item { get; set; }
 
+    private bool _isExistingItemInCart => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs.ContainsKey(Item.Id) ?? false;
+    private string _editButtonText => _isExistingItemInCart ? OrderQuantity == 0 ? "Remove From Cart" : "Update In Cart" : "Add To Cart";
+
+    private async Task UpdateItemToCart()
+    {
+        if (_isExistingItemInCart)
+        {
+            var cartItem = ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs[Item.Id].Copy();
+            if(OrderQuantity == 0)
+            {
+                await ShoppingCartManagementService.DeleteItemAsync(cartItem);
+            }
+            else
+            {
+                cartItem.Quantity = OrderQuantity;
+                await ShoppingCartManagementService.UpdateItemAsync(cartItem);
+            }
+        }
+        else
+        {
+            var cartItem = ShoppingCartItemMapper.MapToEdit(Item, ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartEVM.Id, OrderQuantity);
+            await ShoppingCartManagementService.AddItemAsync(cartItem);
+        }
+    }
 }

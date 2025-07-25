@@ -7,8 +7,8 @@ using QBExternalWebLibrary.Models.Mapping;
 namespace QBExternalWebLibrary.Services.Model {
     public class ModelService<TModel, TView> : IModelService<TModel, TView> where TModel : class {
 
-        private readonly IRepository<TModel> _repository;
-        private readonly IModelMapper<TModel, TView> _mapper;
+        protected readonly IRepository<TModel> _repository;
+        protected readonly IModelMapper<TModel, TView> _mapper;
 
         public ModelService(IRepository<TModel> repository, IModelMapper<TModel, TView> mapper) {
             _repository = repository;

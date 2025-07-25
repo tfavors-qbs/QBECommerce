@@ -9,6 +9,8 @@ using QBExternalWebLibrary.Services.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Thread = QBExternalWebLibrary.Models.Products.Thread;
+using ShopQualityboltWebBlazor.Services;
+using QBExternalWebLibrary.Models.Catalog;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,8 +30,12 @@ builder.Services.AddScoped<IApiService<Material, Material>, ApiService<Material,
 builder.Services.AddScoped<IApiService<Coating, Coating>, ApiService<Coating, Coating>>();
 builder.Services.AddScoped<IApiService<Thread, Thread>, ApiService<Thread, Thread>>();
 builder.Services.AddScoped<IApiService<Spec, Spec>, ApiService<Spec, Spec>>();
+builder.Services.AddScoped<IApiService<ShoppingCart, ShoppingCartEVM>, ApiService<ShoppingCart, ShoppingCartEVM>>();
+builder.Services.AddScoped<IApiService<ShoppingCartItem, ShoppingCartItemEVM>, ApiService<ShoppingCartItem, ShoppingCartItemEVM>>();
 builder.Services.AddScoped<LocalStorageService>();
 builder.Services.AddTransient<CookieHandler>();
+builder.Services.AddSingleton<ShoppingCartPageApiService>();//TODO: Really not sure i want this one to be a singleton, but i need it to be to be able to use it from ShoppingCartManagementService
+builder.Services.AddSingleton<ShoppingCartManagementService>();
 //builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IAuthenticationApiService, IdentityApiService>();
 

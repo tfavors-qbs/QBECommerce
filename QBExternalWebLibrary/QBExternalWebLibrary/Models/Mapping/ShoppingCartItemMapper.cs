@@ -37,9 +37,15 @@ namespace QBExternalWebLibrary.Models.Mapping {
             };
         }
 
-        public List<ShoppingCartItemEVM> MapToEdit(List<ShoppingCartItemEVM> list) {
-            throw new NotImplementedException();
-        }
+		public static ShoppingCartItemEVM MapToEdit(ContractItemEditViewModel model, int cartId, int quantity)
+		{
+			return new ShoppingCartItemEVM
+			{
+				ContractItemId = model.Id,
+				ShoppingCartId = cartId,
+				Quantity = quantity
+			};
+		}
 
         public List<ShoppingCartItemEVM> MapToEdit(IEnumerable<ShoppingCartItem> models) {
             throw new NotImplementedException();

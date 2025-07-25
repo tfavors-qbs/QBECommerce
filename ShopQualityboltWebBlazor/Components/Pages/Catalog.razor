@@ -1,9 +1,12 @@
 ﻿@page "/catalog"
 @using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Models.Catalog
+@using QBExternalWebLibrary.Models.Pages
 @using QBExternalWebLibrary.Models.Products
 @using QBExternalWebLibrary.Services.Http
 @using ShopQualityboltWebBlazor.Components.CustomComponents
 @using Microsoft.AspNetCore.Components.Authorization
+@using ShopQualityboltWebBlazor.Services
 @inject IApiService<ContractItem, ContractItemEditViewModel> contractItemApiService
 @inject IApiService<Diameter, Diameter> diameterApiService
 @inject IApiService<Length, Length> lengthApiService
@@ -12,6 +15,8 @@
 @inject IApiService<Coating, Coating> coatingApiService
 @inject IApiService<Thread, Thread> threadApiService
 @inject IApiService<Spec, Spec> specApiService
+@inject ShoppingCartManagementService ShoppingCartManagementService
+@implements IDisposable
 
 <PageTitle>Quality Bolt and Screw - Catalog</PageTitle>
 
@@ -90,7 +95,9 @@
                     }
                     @if (_itemsToShow != null && _itemsToShow.Count != 0) {
                         foreach (var item in _itemsToShow.GetRange(ShowStartIndex, ShowNumberOfResults)) {
-                            <CatalogItem Item="item"></CatalogItem>
+                            ShoppingCartItemEVM existingCartItem = null;
+                            ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs.TryGetValue(item.Id, out existingCartItem);
+                            <CatalogItem Item="item" OrderQuantity="existingCartItem?.Quantity ?? 1"></CatalogItem>
                         }
                     }
                     @if (_itemsToShow != null && _itemsToShow.Count > 5) {
@@ -185,7 +192,16 @@
 
     }
 
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        ShoppingCartManagementService.UsersShoppingCartEVMChanged += OnUsersShoppingCartChanged;
+    }
+
     protected override async Task OnInitializedAsync() {
+        await ShoppingCartManagementService.RefreshUserShoppingCart();
+
         _items.Clear();
         _items = (await contractItemApiService.GetAllAsync())?.ToList();
         if (_items != null) {
@@ -207,6 +223,16 @@
 
             _itemsToShow = _items.OrderBy(i => _allDiameters.Where(d => d.Id == i.DiameterId).FirstOrDefault()?.Value).ToList();
         }
+    }
+
+    public void Dispose()
+    {
+        ShoppingCartManagementService.UsersShoppingCartEVMChanged -= OnUsersShoppingCartChanged;
+    }
+
+    private void OnUsersShoppingCartChanged(ShoppingCartPageEVM cartPage)
+    {
+        StateHasChanged();
     }
 
     private Func<ContractItemEditViewModel, object> _DiameterSort => x => {

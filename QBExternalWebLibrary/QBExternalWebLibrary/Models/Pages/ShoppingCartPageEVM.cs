@@ -8,6 +8,6 @@ using System.Threading.Tasks;
 namespace QBExternalWebLibrary.Models.Pages {
     public class ShoppingCartPageEVM {
         public ShoppingCartEVM ShoppingCartEVM { get; set; }
-        public List<ShoppingCartItemEVM> ShoppingCartItemEVMs { get; set; }
+        public Dictionary<int, ShoppingCartItemEVM> ShoppingCartItemEVMs { get; set; }
     }
 }
