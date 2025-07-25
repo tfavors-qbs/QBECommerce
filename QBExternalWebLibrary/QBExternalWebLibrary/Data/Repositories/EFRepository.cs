@@ -1,6 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 using Microsoft.EntityFrameworkCore.Query.Internal;
+using QBExternalWebLibrary.Models;
+using System.Linq;
 using System.Linq.Expressions;
 
 namespace QBExternalWebLibrary.Data.Repositories {
@@ -24,7 +26,12 @@ namespace QBExternalWebLibrary.Data.Repositories {
             return _dbSet.Where(predicate);
         }
 
-        public virtual void Add(TEntity entity) {
+		public IEnumerable<TEntity> FindInclude<TProperty>(Expression<Func<TEntity, bool>> predicate, Expression<Func<TEntity, TProperty>> includePredicate)
+		{
+			return _dbSet.Where(predicate).Include(includePredicate);
+		}
+
+		public virtual void Add(TEntity entity) {
             _dbSet.Add(entity);
             _context.SaveChanges();
         }

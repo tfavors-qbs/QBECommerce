@@ -1,0 +1,56 @@
+﻿@using QBExternalWebLibrary.Models.Pages
+@using ShopQualityboltWebBlazor.Services
+@inject ShoppingCartManagementService ShoppingCartManagementService
+@implements IDisposable
+
+<MudButton DropShadow="false" OnClick="@OnClick" Variant="Variant.Outlined" Color="Color.Inherit" Style="border-radius: 50px; border-color: white; color: white;">
+    <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" />
+    <MudCollapse Expanded="@(ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Count > 0)">
+        @if (ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Count > 0)
+        {
+            <MudText Align="Align.Center" Style="color: white;">@GetLabelText()</MudText>
+        }
+    </MudCollapse>
+</MudButton>
+
+@code {
+    [Parameter]
+    public EventCallback OnClick { get; set; }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        ShoppingCartManagementService.UsersShoppingCartEVMChanged += OnUsersShoppingCartChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        if (ShoppingCartManagementService.UsersShoppingCartEVM == null)
+        {
+            await ShoppingCartManagementService.RefreshUserShoppingCart();
+        }
+    }
+
+    public void Dispose()
+    {
+        ShoppingCartManagementService.UsersShoppingCartEVMChanged -= OnUsersShoppingCartChanged;
+    }
+
+    private void OnUsersShoppingCartChanged(ShoppingCartPageEVM cartPage)
+    {
+        StateHasChanged();
+    }
+
+    private string GetLabelText()
+    {
+        if (ShoppingCartManagementService.UsersShoppingCartEVM == null || ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs == null || ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Count == 0)
+        {
+            return "";
+        }
+        else
+        {
+            return $"{ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Count} Items";
+        }
+    }
+}

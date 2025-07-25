@@ -1,6 +1,7 @@
 ﻿@inherits LayoutComponentBase
 @using QBExternalWebLibrary.Services.Authentication
 @using Microsoft.AspNetCore.Components.Authorization
+@using ShopQualityboltWebBlazor.Components.CustomComponents
 @using ShopQualityboltWebBlazor.Components.Pages
 @inject IAccountManagement Acct
 
@@ -27,8 +28,11 @@
         <MudSpacer />
         <AuthorizeView>
             <Authorized>
-                <MudText Class="ma-4">Logged in as @context.User.Identity?.Name.</MudText>
-                <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit" OnClick="@ToggleCartPopover" />
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
+                    <MudIcon Icon="@Icons.Material.Filled.Person"></MudIcon>
+                    <MudText Class="ma-4">@context.User.Identity?.Name</MudText>
+                </MudStack>
+                <ShoppingCartFabButton OnClick="ToggleCartPopover"></ShoppingCartFabButton>
                 <MudButton Variant="Variant.Text" @onclick="Logout" StartIcon="@Icons.Material.Filled.Logout" Color="Color.Inherit">Logout</MudButton>
             </Authorized>
             <NotAuthorized>

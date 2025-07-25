@@ -44,5 +44,12 @@ namespace QBExternalWebLibrary.Services.Http
 			if (!response.IsSuccessStatusCode) return default;
 			return await response.Content.ReadFromJsonAsync<ShoppingCartPageEVM>().ConfigureAwait(false);
 		}
+
+		public async Task<ShoppingCartPageEVM> ClearItemsAsync(ShoppingCartEVM model)
+		{
+			var response = await _httpClient.DeleteAsync($"{_endpoint}/clear/{model.Id}").ConfigureAwait(false);
+			if (!response.IsSuccessStatusCode) return default;
+			return await response.Content.ReadFromJsonAsync<ShoppingCartPageEVM>().ConfigureAwait(false);
+		}
 	}
 }

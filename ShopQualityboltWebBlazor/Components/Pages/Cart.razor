@@ -10,7 +10,10 @@
 @inject NavigationManager NavigationManager
 @implements IDisposable
 
-<MudText Class="my-2" Typo="Typo.h5">Shopping Cart</MudText>
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+    <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Medium" />
+    <MudText Class="my-2" Typo="Typo.h5">Shopping Cart</MudText>
+</MudStack>
 <AuthorizeView>
     <Authorized>
         @if (ShoppingCartManagementService.UsersShoppingCartEVM == null)
@@ -29,7 +32,7 @@
                     <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
                 }
             </MudContainer>
-            <MudTable Items="ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Values" Dense="true" Hover="true" Striped="true" AllowUnsorted="false">
+            <MudTable Items="ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Values" FixedHeader="true" Height="70vh" Dense="true" Hover="true" Striped="true" AllowUnsorted="false">
                 <HeaderContent>
                     <MudTh>Stock Number</MudTh>
                     <MudTh>Description</MudTh>
@@ -57,13 +60,13 @@
             <MudGrid Class="mt-4">
                 <MudItem xs="12" Class="d-flex flex-column" Style="align-items: flex-end;">
                     <div class="d-flex">
-                        <MudText Class="mr-4">Total Quantity: @totalQuantity</MudText>
                         <MudText Class="mr-4">Total Items: @totalItems</MudText>
+                        <MudText Class="mr-4">Total Quantity: @totalQuantity</MudText>
                         <MudText>Total Price: @totalPrice.ToString("C")</MudText>
                     </div>
                     <div class="d-flex mt-2">
                         <MudButton Color="Color.Primary" OnClick="ProceedToCheckout" Disabled="@isLoading" Class="mr-2">
-                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Size="Size.Small" Class="mr-2" />Proceed to Checkout
+                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Size="Size.Small" Class="mr-2" />Review Punchout
                         </MudButton>
                         <MudButton Color="Color.Secondary" OnClick="ClearCart" Disabled="@isLoading">
                             <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Class="mr-2" />Clear Cart
@@ -144,10 +147,7 @@
         if (result == true)
         {
             isLoading = true;
-            foreach (var item in ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs)
-            {
-                await ShoppingCartManagementService.DeleteItemAsync(item.Value);
-            }
+            await ShoppingCartManagementService.ClearItemsAsync();
             isLoading = false;
         }
     }

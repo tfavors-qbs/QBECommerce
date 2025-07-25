@@ -5,7 +5,8 @@ namespace QBExternalWebLibrary.Data.Repositories {
         TEntity GetById(int? id);
         IEnumerable<TEntity> GetAll();
         IEnumerable<TEntity> Find(Expression<Func<TEntity, bool>> predicate);
-        void Add(TEntity entity);
+		IEnumerable<TEntity> FindInclude<TProperty>(Expression<Func<TEntity, bool>> predicate, Expression<Func<TEntity, TProperty>> includePredicate);
+		void Add(TEntity entity);
         void AddRange(IEnumerable<TEntity> entities);
         void Update(TEntity entity);
         void Remove(TEntity entity);

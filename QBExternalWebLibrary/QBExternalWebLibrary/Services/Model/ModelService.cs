@@ -39,11 +39,21 @@ namespace QBExternalWebLibrary.Services.Model {
         _repository.Remove(entity);
     }
 
+    public void DeleteRange(IEnumerable<TModel> entities)
+    {
+        _repository.RemoveRange(entities);
+    }
+
     public IEnumerable<TModel> Find(Expression<Func<TModel, bool>> predicate) {
         return _repository.Find(predicate);
     }
 
-    public IEnumerable<TModel> GetAll() {
+	public IEnumerable<TModel> FindInclude<TProperty>(Expression<Func<TModel, bool>> predicate, Expression<Func<TModel, TProperty>> includeExpression)
+	{
+		return _repository.FindInclude(predicate, includeExpression);
+	}
+
+	public IEnumerable<TModel> GetAll() {
         return _repository.GetAll();
     }
 

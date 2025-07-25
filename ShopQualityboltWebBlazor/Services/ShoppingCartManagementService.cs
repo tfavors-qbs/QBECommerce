@@ -31,5 +31,15 @@ namespace ShopQualityboltWebBlazor.Services
 			await _shoppingCartPageService.DeleteItemAsync(item);
 			return await RefreshUserShoppingCart();
 		}
+
+		public async Task<ShoppingCartPageEVM> ClearItemsAsync()
+		{
+			if(UsersShoppingCartEVM.ShoppingCartEVM == null)
+			{
+				throw new Exception("No shopping cart to clear");
+			}
+			await _shoppingCartPageService.ClearItemsAsync(UsersShoppingCartEVM.ShoppingCartEVM);
+			return await RefreshUserShoppingCart();
+		}
 	}
 }

@@ -154,7 +154,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
         }
 
         [HttpDelete("items/{id}")]
-        public async Task<ActionResult<ShoppingCartPageEVM>> ShoppingCartItemEVM(int id) {
+        public async Task<ActionResult<ShoppingCartPageEVM>> DeleteShoppingCartItem(int id) {
             var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (userId == null)
                 return Unauthorized(new { message = "User is not authenticated." });
@@ -171,8 +171,24 @@ namespace ShopQualityboltWeb.Controllers.Api {
             return await GetCartPageEVM(user);
         }
 
-        #region Helpers
-        private async Task<ShoppingCartPageEVM> GetCartPageEVM(ApplicationUser user) {
+		[HttpDelete("clear/{cartId}")]
+		public async Task<ActionResult<ShoppingCartPageEVM>> ClearShoppingCart(int cartId)
+		{
+			var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+			if (userId == null)
+				return Unauthorized(new { message = "User is not authenticated." });
+			var user = await _userManager.FindByIdAsync(userId);
+			if (user == null)
+				return NotFound(new { message = "User not found." });
+			var usersShoppingCart = _service.FindInclude(a => a.ApplicationUserId == user.Id, b => b.ShoppingCartItems).FirstOrDefault();
+			if (usersShoppingCart == null)
+				return NotFound(new { message = "Users cart not found" });
+			_shoppingcartItemService.DeleteRange(usersShoppingCart.ShoppingCartItems);
+			return await GetCartPageEVM(user);
+		}
+
+		#region Helpers
+		private async Task<ShoppingCartPageEVM> GetCartPageEVM(ApplicationUser user) {
             var pageInfo = new ShoppingCartPageEVM();
 			var usersShoppingCart = _service.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
 			if (usersShoppingCart != null)
