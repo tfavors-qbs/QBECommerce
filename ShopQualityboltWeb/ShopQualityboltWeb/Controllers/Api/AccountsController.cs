@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Identity.Client;
 using Microsoft.IdentityModel.Tokens;
 using QBExternalWebLibrary.Models;
+using QBExternalWebLibrary.Models.Ariba;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Http.ContentTypes.Identity;
 using QBExternalWebLibrary.Services.Model;
@@ -75,7 +76,42 @@ namespace ShopQualityboltWeb.Controllers.Api {
             });
         }
 
-        [HttpPost("login")]
+		[HttpPost("login/ariba")]
+		public async Task<ActionResult<LoginResponse>> Login([FromBody] AribaLoginRequest loginRequest, bool useCookies = false)
+		{
+			if (!ModelState.IsValid)
+			{
+				return BadRequest(CreateErrorResponse("Validation Error", "Invalid request"));
+			}
+            ApplicationUser user = _userManager.Users.FirstOrDefault(a => a.AribaId == loginRequest.AribaId);
+			if (user == null)
+			{
+				return Unauthorized(CreateErrorResponse("Login Failed", "Invalid Ariba Id"));
+			}
+			
+            await _signInManager.SignInAsync(user, true);
+
+			if (useCookies)
+			{
+				return Ok(new { message = "Logged in with cookies" });
+			}
+			else
+			{
+				var token = GenerateJwtToken(user);
+				int expiresIn = int.Parse(_config["Jwt:ExpireMinutes"]) * 60;
+				var refreshToken = GenerateRefreshToken();
+
+				return Ok(new LoginResponse
+				{
+					tokenType = "Bearer",
+					accessToken = token,
+					expiresIn = expiresIn,
+					refreshToken = refreshToken
+				});
+			}
+		}
+
+		[HttpPost("login")]
         public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest loginRequest, bool useCookies = false) {
             if (!ModelState.IsValid) {
                 return BadRequest(CreateErrorResponse("Validation Error", "Invalid request"));

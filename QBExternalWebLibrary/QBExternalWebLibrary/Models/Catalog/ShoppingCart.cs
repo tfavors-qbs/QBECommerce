@@ -4,6 +4,9 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml;
+using System.Xml.Serialization;
+using Ariba;
 
 namespace QBExternalWebLibrary.Models.Catalog
 {
@@ -19,5 +22,13 @@ namespace QBExternalWebLibrary.Models.Catalog
     public class ShoppingCartEVM {
         public int Id { get; set; }
         public string ApplicationUserId { get; set; } = "";
+    }
+
+    public class PunchOutOrderMesssageGenerator()
+    {
+        public void Generate()
+        {
+            
+        }
     }
 }

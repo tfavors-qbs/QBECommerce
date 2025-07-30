@@ -64,8 +64,6 @@ namespace ShopQualityboltWeb.Controllers.Api {
         [HttpGet("get-cart-info")]
         [Authorize]
         public async Task<ActionResult<ShoppingCartPageEVM>> GetCartPageInfo() {
-            List<ShoppingCartItem> cartItems;
-            List<ContractItem> contractItems;
             ShoppingCartPageEVM pageInfo = new ShoppingCartPageEVM();
             var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
             if (userId == null) return Unauthorized(new { message = "User is not authenticated." });
@@ -114,10 +112,10 @@ namespace ShopQualityboltWeb.Controllers.Api {
             var usersShoppingCartItems = _shoppingcartItemService.Find(a => a.ShoppingCartId == usersShoppingCart.Id);
             if(usersShoppingCartItems != null)
             {
-                bool cartItemForContractIdExists = usersShoppingCartItems.Count(a => a.ContractItemId == model.ContractItemId) > 0;
+                bool cartItemForContractIdExists = usersShoppingCartItems.Any(a => a.ContractItemId == model.ContractItemId);
 				if (cartItemForContractIdExists)
                 {
-					return BadRequest(new { message = "Cannot add a new contract item to shopping cart where contract item already exists. Use Update instead." });
+					return BadRequest(new { message = "Cannot add a new shopping cart item to shopping cart where contract item already exists. Use Update instead." });
 				}
             }
 
@@ -144,7 +142,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
                 return NotFound(new { message = "User not found." });
 			var usersShoppingCart = _service.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
 			if (usersShoppingCart == null)
-				return NotFound(new { message = "Users cart not found" });
+				return NotFound(new { message = "User's cart not found." });
 			var cartItem = _shoppingcartItemService.Find(i => i.Id == id && i.ShoppingCartId == usersShoppingCart.Id).FirstOrDefault();
             if (cartItem == null)
                 return NotFound(new { message = "Cart item not found or not authorized." });
@@ -163,7 +161,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
                 return NotFound(new { message = "User not found." });
 			var usersShoppingCart = _service.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
 			if (usersShoppingCart == null)
-				return NotFound(new { message = "Users cart not found" });
+				return NotFound(new { message = "User's cart not found." });
 			var cartItem = _shoppingcartItemService.Find(i => i.Id == id && i.ShoppingCartId == usersShoppingCart.Id).FirstOrDefault();
             if (cartItem == null)
                 return NotFound(new { message = "Cart item not found or not authorized." });
@@ -182,7 +180,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
 				return NotFound(new { message = "User not found." });
 			var usersShoppingCart = _service.FindInclude(a => a.ApplicationUserId == user.Id, b => b.ShoppingCartItems).FirstOrDefault();
 			if (usersShoppingCart == null)
-				return NotFound(new { message = "Users cart not found" });
+				return NotFound(new { message = "User's cart not found." });
 			_shoppingcartItemService.DeleteRange(usersShoppingCart.ShoppingCartItems);
 			return await GetCartPageEVM(user);
 		}

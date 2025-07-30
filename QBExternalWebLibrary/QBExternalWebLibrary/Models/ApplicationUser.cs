@@ -13,5 +13,6 @@ namespace QBExternalWebLibrary.Models {
         public int? ClientId { get; set; }
         public Client? Client { get; set; }
         public bool IsDisabled { get; set; }
+        public string AribaId { get; set; }
     }
 }
