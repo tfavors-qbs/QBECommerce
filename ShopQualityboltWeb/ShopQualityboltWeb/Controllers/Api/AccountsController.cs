@@ -24,12 +24,14 @@ namespace ShopQualityboltWeb.Controllers.Api {
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IConfiguration _config;
         private readonly IModelService<Client, ClientEditViewModel> _clientService;
+		private readonly IModelService<PunchOutSession, PunchOutSession> _punchOutSessionService;
 
-        public AccountsController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration config, IModelService<Client,ClientEditViewModel> clientService) {
+		public AccountsController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration config, IModelService<Client,ClientEditViewModel> clientService, IModelService<PunchOutSession, PunchOutSession> punchOutSessionService) {
             _userManager = userManager;
             _signInManager = signInManager;
             _config = config;
             _clientService = clientService;
+            _punchOutSessionService = punchOutSessionService;
         }
 
         [HttpPost("register")]
@@ -77,16 +79,28 @@ namespace ShopQualityboltWeb.Controllers.Api {
         }
 
 		[HttpPost("login/ariba")]
-		public async Task<ActionResult<LoginResponse>> Login([FromBody] AribaLoginRequest loginRequest, bool useCookies = false)
+		public async Task<ActionResult<LoginResponse>> Login([FromBody] string punchOutSessionId, bool useCookies = false)
 		{
 			if (!ModelState.IsValid)
 			{
 				return BadRequest(CreateErrorResponse("Validation Error", "Invalid request"));
 			}
-            ApplicationUser user = _userManager.Users.FirstOrDefault(a => a.AribaId == loginRequest.AribaId);
+
+            var punchOutSession = _punchOutSessionService.Find(a => a.SessionId == punchOutSessionId).FirstOrDefault();
+            if(punchOutSession == null)
+            {
+				return BadRequest(CreateErrorResponse("Validation Error", "No punch out session could be found for the punchOutSessionId"));
+			}
+
+            if (punchOutSession.ExpirationDateTime < DateTime.Now) 
+            {
+				return Unauthorized(CreateErrorResponse("Login Failed", "Punch out session expired"));
+			}
+
+            ApplicationUser user = _userManager.Users.FirstOrDefault(a => a.Id == punchOutSession.UserId);
 			if (user == null)
 			{
-				return Unauthorized(CreateErrorResponse("Login Failed", "Invalid Ariba Id"));
+				return Unauthorized(CreateErrorResponse("Login Failed", "Could not find user associated with punch out session"));
 			}
 			
             await _signInManager.SignInAsync(user, true);

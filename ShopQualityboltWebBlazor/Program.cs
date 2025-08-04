@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Thread = QBExternalWebLibrary.Models.Products.Thread;
 using ShopQualityboltWebBlazor.Services;
 using QBExternalWebLibrary.Models.Catalog;
+using QBExternalWebLibrary.Models.Ariba;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,10 +33,12 @@ builder.Services.AddScoped<IApiService<Thread, Thread>, ApiService<Thread, Threa
 builder.Services.AddScoped<IApiService<Spec, Spec>, ApiService<Spec, Spec>>();
 builder.Services.AddScoped<IApiService<ShoppingCart, ShoppingCartEVM>, ApiService<ShoppingCart, ShoppingCartEVM>>();
 builder.Services.AddScoped<IApiService<ShoppingCartItem, ShoppingCartItemEVM>, ApiService<ShoppingCartItem, ShoppingCartItemEVM>>();
+builder.Services.AddScoped<PunchOutSessionApiService>();
 builder.Services.AddScoped<LocalStorageService>();
 builder.Services.AddTransient<CookieHandler>();
 builder.Services.AddSingleton<ShoppingCartPageApiService>();//TODO: Really not sure i want this one to be a singleton, but i need it to be to be able to use it from ShoppingCartManagementService
 builder.Services.AddSingleton<ShoppingCartManagementService>();
+builder.Services.AddSingleton<PunchOutManagementService>();
 //builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IAuthenticationApiService, IdentityApiService>();
 

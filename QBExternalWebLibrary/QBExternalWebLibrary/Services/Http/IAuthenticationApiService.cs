@@ -11,5 +11,6 @@ namespace QBExternalWebLibrary.Services.Http
     {
         Task RegisterAsync(string email, string password, string givenName, string familyName);
         Task<HttpResponseMessage> LoginAsync(string email, string password);
-    }
+		Task<HttpResponseMessage> LoginAsync(string sessionId);
+	}
 }

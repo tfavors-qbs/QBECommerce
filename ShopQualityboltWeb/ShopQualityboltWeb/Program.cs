@@ -14,6 +14,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using QBExternalWebLibrary.Models.Catalog;
+using QBExternalWebLibrary.Models.Ariba;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -92,6 +93,10 @@ builder.Services.AddScoped<IModelMapper<ShoppingCart, ShoppingCartEVM>, Shopping
 builder.Services.AddScoped<IRepository<ShoppingCartItem>, ShoppingCartItemEFRepository>();
 builder.Services.AddScoped<IModelService<ShoppingCartItem, ShoppingCartItemEVM?>, ModelService<ShoppingCartItem, ShoppingCartItemEVM?>>();
 builder.Services.AddScoped<IModelMapper<ShoppingCartItem, ShoppingCartItemEVM>, ShoppingCartItemMapper>();
+
+builder.Services.AddScoped<IRepository<PunchOutSession>, EFRepository<PunchOutSession>>();
+builder.Services.AddScoped<IModelService<PunchOutSession, PunchOutSession?>, ModelService<PunchOutSession, PunchOutSession?>>();
+builder.Services.AddScoped<IModelMapper<PunchOutSession, PunchOutSession>, GenericMapper<PunchOutSession, PunchOutSession>>();
 
 var app = builder.Build();
 

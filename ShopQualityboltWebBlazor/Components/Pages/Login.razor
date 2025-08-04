@@ -1,12 +1,17 @@
 ﻿@page "/login"
+@using QBExternalWebLibrary.Models.Ariba
 @using QBExternalWebLibrary.Services.Http;
 @using System.Security.Claims
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Identity
 @using ShopQualityboltWebBlazor.Components.CustomComponents
 @using QBExternalWebLibrary.Services.Authentication
+@using ShopQualityboltWebBlazor.Services
 @inject IDialogService DialogService
+@inject PunchOutSessionApiService punchOutSessionService;
+@inject PunchOutManagementService punchOutManagementService;
 @inject IAccountManagement Acct
+@inject NavigationManager navigationManager;
 
 <PageTitle>Quality Bolt and Screw - Login</PageTitle>
 
@@ -35,41 +40,53 @@
 
     <NotAuthorized>
         <MudPaper Class="ma-4 pa-4" MaxWidth="700px">
-            <MudText Typo="Typo.h6" Class="mx-2">Login</MudText>
-            <MudStack Row="true" Class="pa-2">
+            @if (isAutoLoginFromPunchOutSession)
+            {
+                <MudText Typo="Typo.h6" Class="mx-2">Logging in via Punch Out...</MudText>
+                <MudProgressLinear Indeterminate="true"></MudProgressLinear>
+            }
+            else
+            {
+                <MudText Typo="Typo.h6" Class="mx-2">Login</MudText>
+                <MudStack Row="true" Class="pa-2">
 
-                <!--Username textfield-->
-                <MudTextField Label="Username"
-                @bind-Value="_userName"
-                Variant="Variant.Outlined">
-                </MudTextField>
-                <!--Password textfield-->
-                <MudTextField Label="Password"
-                @bind-Value="_password"
-                Variant="Variant.Outlined"
-                InputType="@_passwordInputType"
-                Adornment="Adornment.End"
-                AdornmentIcon="@_passwordInputIcon"
-                OnAdornmentClick="ShowPasswordToggle"
-                AdornmentAriaLabel="Show Password">
-                </MudTextField>
+                    <!--Username textfield-->
+                    <MudTextField Label="Username"
+                    @bind-Value="_userName"
+                    Variant="Variant.Outlined">
+                    </MudTextField>
+                    <!--Password textfield-->
+                    <MudTextField Label="Password"
+                    @bind-Value="_password"
+                    Variant="Variant.Outlined"
+                    InputType="@_passwordInputType"
+                    Adornment="Adornment.End"
+                    AdornmentIcon="@_passwordInputIcon"
+                    OnAdornmentClick="ShowPasswordToggle"
+                    AdornmentAriaLabel="Show Password">
+                    </MudTextField>
 
-            </MudStack>
-            <MudStack Class="ma-2 pa-2" Row="true">
-                <MudButton Color="Color.Primary" Variant="Variant.Filled" @onclick=Submit>Submit</MudButton>
-                <MudButton Color="Color.Surface" Variant="Variant.Text" @onclick=Register>Register</MudButton>
-            </MudStack>
-            <MudStack>
-                @if (_isLoginError) {
-                    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_loginError</MudAlert>
-                }
-            </MudStack>
+                </MudStack>
+                <MudStack Class="ma-2 pa-2" Row="true">
+                    <MudButton Color="Color.Primary" Variant="Variant.Filled" @onclick=Submit>Submit</MudButton>
+                    <MudButton Color="Color.Surface" Variant="Variant.Text" @onclick=Register>Register</MudButton>
+                </MudStack>
+                <MudStack>
+                    @if (_isLoginError)
+                    {
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">@_loginError</MudAlert>
+                    }
+                </MudStack>
+            }
         </MudPaper>
     </NotAuthorized>
 
 </AuthorizeView>
 
 @code {
+    [SupplyParameterFromQuery]
+    public string sessionId{ get; set; }
+
     bool _isShow;
     bool _isLoginError;
     string _loginError = "";
@@ -81,12 +98,38 @@
     private bool _isAuthenticated;
     private IEnumerable<Claim> claims = Enumerable.Empty<Claim>();
     private IdentityApiService _identityAPICaller;
+    private bool isAutoLoginFromPunchOutSession => !string.IsNullOrEmpty(sessionId);
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         base.OnAfterRender(firstRender);
-        if (firstRender) { }
+        if (firstRender)
+        {
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                await LoginUsingSessionId(sessionId);
+            }
+        }
     }
 
+    private async Task LoginUsingSessionId(string id)
+    {
+        PunchOutSession session = await punchOutSessionService.GetBySessionIdAsync(id);
+        if(session == null)
+        {
+            await DialogService.ShowMessageBox("Punch Out Session Login Failed", "Failed to login to system using punch out session id, please try again or contact support.");
+            return;
+        }
+
+        var result = await Acct.LoginAsync(id);
+        if (!result.Succeeded)
+        {
+            await DialogService.ShowMessageBox("Punch Out Session Login Failed", "Failed to login to system using punch out session id, please try again or contact support.");
+            return;
+        }
+
+        punchOutManagementService.CurrentPunchOutSession = session;
+        navigationManager.NavigateTo($"{navigationManager.BaseUri}catalog");
+    }
 
     void ShowPasswordToggle() {
         @if (_isShow) {

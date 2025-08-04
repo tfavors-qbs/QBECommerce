@@ -1,16 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore.Scaffolding.Metadata;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using QBExternalWebLibrary.Services;
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using QBExternalWebLibrary.Models;
 using QBExternalWebLibrary.Models.Products;
 using Thread = QBExternalWebLibrary.Models.Products.Thread;
-using System.Net;
 using QBExternalWebLibrary.Models.Catalog;
+using QBExternalWebLibrary.Models.Ariba;
 
 namespace QBExternalWebLibrary.Services.Http
 {
@@ -33,6 +26,7 @@ namespace QBExternalWebLibrary.Services.Http
             {typeof(Thread), "api/threads" },
 			{typeof(ShoppingCart), "api/shoppingcarts" },
 			{typeof(ShoppingCartItem), "api/shoppingcartitems" },
+			{typeof(PunchOutSession), "api/punchoutsessions" },
 		};
         protected string _endpoint = "";
 

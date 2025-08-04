@@ -136,15 +136,41 @@ namespace QBExternalWebLibrary.Services.Authentication {
             };
         }
 
-        /// <summary>
-        /// Get authentication state.
-        /// </summary>
-        /// <remarks>
-        /// Called by Blazor anytime and authentication-based decision needs to be made, then cached
-        /// until the changed state notification is raised.
-        /// </remarks>
-        /// <returns>The authentication state asynchronous request.</returns>
-        public override async Task<AuthenticationState> GetAuthenticationStateAsync() {
+		public async Task<FormResult> LoginAsync(string sessionId)
+		{
+			HttpResponseMessage result = await _httpClient.PostAsJsonAsync("api/accounts/login/ariba", sessionId);
+
+			// success?
+			if (result.IsSuccessStatusCode)
+			{
+				// need to refresh auth state
+				NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+
+				// success!
+				return new FormResult { Succeeded = true };
+			}
+			//}
+			//catch { }
+
+			// unknown error
+			return new FormResult
+			{
+				Succeeded = false,
+				ErrorList = ["Invalid email and/or password."]
+			};
+		}
+
+		
+
+		/// <summary>
+		/// Get authentication state.
+		/// </summary>
+		/// <remarks>
+		/// Called by Blazor anytime and authentication-based decision needs to be made, then cached
+		/// until the changed state notification is raised.
+		/// </remarks>
+		/// <returns>The authentication state asynchronous request.</returns>
+		public override async Task<AuthenticationState> GetAuthenticationStateAsync() {
             _authenticated = false;
 
             // default to not authenticated

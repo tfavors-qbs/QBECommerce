@@ -41,5 +41,11 @@ namespace QBExternalWebLibrary.Services.Http
             return response;
         }
 
-    }
+		public async Task<HttpResponseMessage> LoginAsync(string sessionId)
+		{
+			HttpResponseMessage response = await _httpClient.PostAsJsonAsync("login/ariba", sessionId);
+			return response;
+		}
+
+	}
 }

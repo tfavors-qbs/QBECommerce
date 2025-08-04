@@ -14,6 +14,8 @@ namespace QBExternalWebLibrary.Services.Authentication {
         /// <returns>The result of the request serialized to <see cref="FormResult"/>.</returns>
         public Task<FormResult> LoginAsync(string email, string password);
 
+        public Task<FormResult> LoginAsync(string sessionId);
+
         /// <summary>
         /// Log out the logged in user.
         /// </summary>

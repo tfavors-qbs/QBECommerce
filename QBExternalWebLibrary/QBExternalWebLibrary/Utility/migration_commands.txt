@@ -1,3 +1,3 @@
-﻿dotnet ef migrations add anew --project ..\QBExternalWebLibrary\QBExternalWebLibrary --startup-project .\ShopQualityBoltWeb\
-dotnet ef database update --project ..\QBExternalWebLibrary\QBExternalWebLibrary --startup-project .\ShopQualityBoltWeb\
-dotnet ef migrations remove --project ..\QBExternalWebLibrary\QBExternalWebLibrary --startup-project .\ShopQualityBoltWeb\
+﻿dotnet ef migrations add anew --project .\QBExternalWebLibrary\QBExternalWebLibrary --startup-project .\ShopQualityBoltWeb\ShopQualityBoltWeb
+dotnet ef database update --project .\QBExternalWebLibrary\QBExternalWebLibrary --startup-project .\ShopQualityBoltWeb\ShopQualityBoltWeb
+dotnet ef migrations remove --project .\QBExternalWebLibrary\QBExternalWebLibrary --startup-project .\ShopQualityBoltWeb\ShopQualityBoltWeb
