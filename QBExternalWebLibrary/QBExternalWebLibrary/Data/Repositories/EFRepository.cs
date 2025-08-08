@@ -31,6 +31,11 @@ namespace QBExternalWebLibrary.Data.Repositories {
 			return _dbSet.Where(predicate).Include(includePredicate);
 		}
 
+		public virtual IEnumerable<TEntity> FindFullyIncluded(Expression<Func<TEntity, bool>> predicate)
+		{
+			throw new NotImplementedException();
+		}
+
 		public virtual void Add(TEntity entity) {
             _dbSet.Add(entity);
             _context.SaveChanges();
@@ -60,5 +65,7 @@ namespace QBExternalWebLibrary.Data.Repositories {
         public virtual bool Exists(Func<TEntity, bool> predicate) {
             return _dbSet.Any(predicate);
         }
-    }
+
+		
+	}
 }

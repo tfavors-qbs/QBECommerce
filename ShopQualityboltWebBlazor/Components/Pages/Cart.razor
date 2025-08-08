@@ -1,13 +1,21 @@
-﻿@using Microsoft.AspNetCore.Components.Authorization
+﻿@using Ariba
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.Components.Web
+@using QBExternalWebLibrary.Models.Ariba
 @using QBExternalWebLibrary.Models.Catalog
 @using QBExternalWebLibrary.Models.Pages
 @using QBExternalWebLibrary.Services.Authentication
+@using QBExternalWebLibrary.Services.Http
 @using ShopQualityboltWebBlazor.Services
 @inject IDialogService DialogService
 @inject IAccountManagement Acct
 @inject ShoppingCartManagementService ShoppingCartManagementService
+@inject ShoppingCartPageApiService shoppingCartPageApiService;
 @inject NavigationManager NavigationManager
+@inject PunchOutManagementService punchOutManagementService;
+@inject IApiService<ShoppingCart, ShoppingCartEVM> shoppingCartApiService
+@inject ShoppingCartItemApiService shoppingCartItemApiService;
+@inject HttpClient httpClient;
 @implements IDisposable
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
@@ -65,8 +73,8 @@
                         <MudText>Total Price: @totalPrice.ToString("C")</MudText>
                     </div>
                     <div class="d-flex mt-2">
-                        <MudButton Color="Color.Primary" OnClick="ProceedToCheckout" Disabled="@isLoading" Class="mr-2">
-                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Size="Size.Small" Class="mr-2" />Review Punchout
+                        <MudButton Color="Color.Primary" OnClick="PerformCheckout" Disabled="@isLoading" Class="mr-2">
+                            <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Size="Size.Small" Class="mr-2" />Check Out
                         </MudButton>
                         <MudButton Color="Color.Secondary" OnClick="ClearCart" Disabled="@isLoading">
                             <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Class="mr-2" />Clear Cart
@@ -152,8 +160,82 @@
         }
     }
 
-    private void ProceedToCheckout()
+    private async Task PerformCheckout()
     {
-        NavigationManager.NavigateTo("/checkout");
+        isLoading = true;
+        StateHasChanged();
+
+        PunchOutSession session = punchOutManagementService.CurrentPunchOutSession;
+        if(session == null)
+        {
+            await DialogService.ShowMessageBox("Error", "No current punch out session recognized");
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        ShoppingCartPageEVM usersCartPage = await shoppingCartPageApiService.GetPageAsync();
+        if(usersCartPage == null)
+        {
+            await DialogService.ShowMessageBox("Error", "Failed to find user's shopping cart page, please refresh the page and try again");
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        ShoppingCartEVM usersCart = usersCartPage.ShoppingCartEVM;
+        var usersCartItems = await shoppingCartItemApiService.GetShoppingCartItemsForShoppingCart(usersCart.Id);
+        if (usersCart == null || usersCartItems == null)
+        {
+            await DialogService.ShowMessageBox("Error", "Failed to find user's shopping cart or items, please refresh the page and try again");
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        if (usersCartItems.Count() != ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Count)
+        {
+            await DialogService.ShowMessageBox("Error", "The user's shopping cart has changed, please refresh the page and recheck your cart");
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        int i = 0;
+        foreach (ShoppingCartItem item in usersCartItems)
+        {
+            ShoppingCartItemEVM localItem = ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.ElementAt(i).Value;
+            if(item.Id != localItem.Id || item.Quantity != localItem.Quantity)
+            {
+                await DialogService.ShowMessageBox("Error", "The user's shopping cart has changed, please refresh the page and recheck your cart");
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+            i++;
+        }
+
+        string orderMessage = ShoppingCart.GeneratePunchOutOrderMessage(usersCartItems, session);
+        if (string.IsNullOrEmpty(orderMessage))
+        {
+            await DialogService.ShowMessageBox("Error", "Failed to generate punch out order message, please try again or contact support");
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        string postUrl = session.PostUrl;
+
+        var result = await httpClient.PostAsJsonAsync(postUrl, orderMessage);
+        if (!result.IsSuccessStatusCode)
+        {
+            await DialogService.ShowMessageBox("Error", "Failed to send punch out order to browser form post, please try again or contact support");
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        isLoading = false;
+        StateHasChanged();
     }
 }

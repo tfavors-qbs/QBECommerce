@@ -53,6 +53,11 @@ namespace QBExternalWebLibrary.Services.Model {
 		return _repository.FindInclude(predicate, includeExpression);
 	}
 
+    public virtual IEnumerable<TModel> FindFullyIncluded(Expression<Func<TModel, bool>> predicate)
+    {
+        return _repository.FindFullyIncluded(predicate);
+	}
+
 	public IEnumerable<TModel> GetAll() {
         return _repository.GetAll();
     }

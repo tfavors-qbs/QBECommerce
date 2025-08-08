@@ -19,5 +19,18 @@ namespace ShopQualityboltWeb.Controllers.Api {
             _mapper = mapper;
             _userManager = userManager;
         }
-    }
+
+		[HttpGet("shoppingcart/{cartId}")]
+		public async Task<ActionResult<IEnumerable<ShoppingCartItem>>> GetShoppingCartItemsByShoppingCartId(int cartId)
+		{
+			var items = _service.FindFullyIncluded(a => a.ShoppingCartId == cartId);
+
+			if (items == null)
+			{
+				return NotFound();
+			}
+
+			return Ok(items);
+		}
+	}
 }

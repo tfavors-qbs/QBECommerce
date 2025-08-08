@@ -111,7 +111,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 					return BadRequest(CreateErrorResponse("400", "Invalid email"));
 				}
 
-				string newSessionId = $"{Random.Shared.Next(0, 99999999)}";
+				string newSessionId = $"{Random.Shared.Next(10000000, 99999999)}";
 
 				// Create PunchOutSetupResponse
 				var response = new cXML

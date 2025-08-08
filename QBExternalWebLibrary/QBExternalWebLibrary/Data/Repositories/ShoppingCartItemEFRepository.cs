@@ -1,4 +1,5 @@
-﻿using QBExternalWebLibrary.Models.Catalog;
+﻿using Microsoft.EntityFrameworkCore;
+using QBExternalWebLibrary.Models.Catalog;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,5 +23,10 @@ namespace QBExternalWebLibrary.Data.Repositories {
         public override ShoppingCartItem GetById(int? id) {
             return _dbSet.FirstOrDefault(s => s.Id == id);
         }
-    }
+
+		public override IEnumerable<ShoppingCartItem> FindFullyIncluded(Expression<Func<ShoppingCartItem, bool>> predicate)
+		{
+            return _dbSet.Where(predicate).Include(a => a.ContractItem).ThenInclude(a => a.SKU);
+		}
+	}
 }

@@ -34,8 +34,8 @@ namespace ShopQualityboltWeb.Controllers.Api {
         }
 
         [HttpGet("{id}")]
-        public async Task<ActionResult<ShoppingCartEVM>> GetShoppingCart(int id) {
-            var shoppingCart = _mapper.MapToEdit(_service.GetById(id));
+        public async Task<ActionResult<ShoppingCart>> GetShoppingCart(int id) {
+            var shoppingCart = _service.GetById(id);
 
             if (shoppingCart == null) {
                 return NotFound();

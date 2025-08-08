@@ -32,7 +32,7 @@ builder.Services.AddScoped<IApiService<Coating, Coating>, ApiService<Coating, Co
 builder.Services.AddScoped<IApiService<Thread, Thread>, ApiService<Thread, Thread>>();
 builder.Services.AddScoped<IApiService<Spec, Spec>, ApiService<Spec, Spec>>();
 builder.Services.AddScoped<IApiService<ShoppingCart, ShoppingCartEVM>, ApiService<ShoppingCart, ShoppingCartEVM>>();
-builder.Services.AddScoped<IApiService<ShoppingCartItem, ShoppingCartItemEVM>, ApiService<ShoppingCartItem, ShoppingCartItemEVM>>();
+builder.Services.AddScoped<ShoppingCartItemApiService>();
 builder.Services.AddScoped<PunchOutSessionApiService>();
 builder.Services.AddScoped<LocalStorageService>();
 builder.Services.AddTransient<CookieHandler>();

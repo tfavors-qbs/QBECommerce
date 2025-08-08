@@ -9,6 +9,7 @@ namespace QBExternalWebLibrary.Services.Model
         IEnumerable<TModel> GetAll();
         IEnumerable<TModel> Find(Expression<Func<TModel, bool>> predicate);
 		IEnumerable<TModel> FindInclude<TProperty>(Expression<Func<TModel, bool>> predicate, Expression<Func<TModel, TProperty>> includeExpression);
+		IEnumerable<TModel> FindFullyIncluded(Expression<Func<TModel, bool>> predicate);
 		TModel Create(TModel? entity, TView view = default);
         IEnumerable<TModel> CreateRange(IEnumerable<TModel>? entities, IEnumerable<TView> views = default);
         TModel Update(TModel? entity, TView view = default);
