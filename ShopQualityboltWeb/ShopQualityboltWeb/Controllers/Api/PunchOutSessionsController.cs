@@ -79,6 +79,12 @@ namespace ShopQualityboltWeb.Controllers.Api
 					return BadRequest(CreateErrorResponse("400", "Invalid or missing PunchOutSetupRequest"));
 				}
 
+				var from = header?.From?.FirstOrDefault(c => c.domain == "DUNS")?.Identity?.Any?.FirstOrDefault()?.Value ?? "";
+				if (string.IsNullOrEmpty(from))
+				{
+					return BadRequest(CreateErrorResponse("400", "Invalid header or From identity"));
+				}
+
 				var credential = header?.Sender?.Credential?.FirstOrDefault(c => c.domain == "NetworkId");
 				// Validate credentials (e.g., SharedSecret)
 				if (header == null || credential?.Item is not SharedSecret sharedSecret)
@@ -164,6 +170,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 					{
 						SessionId = newSessionId,
 						PostUrl = postUrl,
+						FromId = from,
 						BuyerCookie = buyerCookie,
 						CreatedDateTime = DateTime.Now,
 						ExpirationDateTime = DateTime.Now.AddMinutes(PunchOutSession.StartingMinutesToExpire),

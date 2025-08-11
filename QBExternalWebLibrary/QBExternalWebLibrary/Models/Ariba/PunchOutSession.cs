@@ -7,6 +7,7 @@ namespace QBExternalWebLibrary.Models.Ariba
 		public int Id { get; set; }
 		public string SessionId { get; set; }
 		public string UserId { get; set; }
+		public string FromId { get; set; }
 		public string PostUrl { get; set; }
 		public string BuyerCookie { get; set; }
 		public string Operation { get; set; }
