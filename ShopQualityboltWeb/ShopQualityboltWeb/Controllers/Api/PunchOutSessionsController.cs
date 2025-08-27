@@ -172,7 +172,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 				}
 
 				
-				if(punchOutSetupRequest.operation == PunchOutSetupRequestOperation.edit)
+				if(punchOutSetupRequest.operation == PunchOutSetupRequestOperation.edit || punchOutSetupRequest.operation == PunchOutSetupRequestOperation.inspect)
 				{
 					var usersShoppingCart = _shoppingCartService.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
 					if(usersShoppingCart == null)
