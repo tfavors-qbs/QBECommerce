@@ -20,6 +20,8 @@ using NuGet.Protocol.Plugins;
 using Microsoft.CodeAnalysis.Elfie.Serialization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using System.Collections.Frozen;
+using QBExternalWebLibrary.Models.Catalog;
+using System.Collections.Generic;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -163,6 +165,27 @@ namespace ShopQualityboltWeb.Controllers.Api
 				if(user.AribaId != aribaId)
 				{
 					return Unauthorized(CreateErrorResponse("401", "The ariba id given could not be associated with the email account given"));
+				}
+
+				
+				if(punchOutSetupRequest.operation == PunchOutSetupRequestOperation.edit)
+				{
+					for (int i = 0; i < punchOutSetupRequest.ItemOut.Length; i++)
+					{
+						ItemOut item = punchOutSetupRequest.ItemOut[i];
+						if(item.ItemID != null)
+						{
+							SupplierPartAuxiliaryID supplierPartAuxiliaryID = item.ItemID.SupplierPartAuxiliaryID;
+							string custStockNumber = supplierPartAuxiliaryID?.Any?.FirstOrDefault()?.Value;
+							if (!string.IsNullOrEmpty(custStockNumber))
+							{
+								if(!int.TryParse(item.quantity, out int qty))
+								{
+									//TODO: Add cart item to some list for reinstantiation later on
+								}
+							}
+						}
+					}
 				}
 
 				var punchOutResult = await PostSession(
