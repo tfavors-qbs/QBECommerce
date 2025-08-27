@@ -16,8 +16,8 @@
         </MudItem>
         <MudItem xs="12" sm="12" md="12" lg="4" xl="2">
             <MudStack>
-                <MudNumericField Min="@(_isExistingItemInCart ? 0 : 1)" Variant="Variant.Outlined" @bind-Value="@OrderQuantity"></MudNumericField>
-                <MudButton Disabled="_isSameQtyAsCart" StartIcon="@Icons.Material.TwoTone.AddShoppingCart" Variant="Variant.Filled" Color="@(_isExistingItemInCart ? OrderQuantity == 0 ? Color.Error : Color.Warning : Color.Tertiary)" OnClick="UpdateItemToCart">@_editButtonText</MudButton>
+                <MudNumericField Disabled="IsReadOnly" Min="@(_isExistingItemInCart ? 0 : 1)" Variant="Variant.Outlined" @bind-Value="@OrderQuantity"></MudNumericField>
+                <MudButton Disabled="_isSameQtyAsCart || IsReadOnly" StartIcon="@Icons.Material.TwoTone.AddShoppingCart" Variant="Variant.Filled" Color="@(_isExistingItemInCart ? OrderQuantity == 0 ? Color.Error : Color.Warning : Color.Tertiary)" OnClick="UpdateItemToCart">@_editButtonText</MudButton>
             </MudStack>
         </MudItem>
     </MudGrid>
@@ -29,6 +29,9 @@
 
     [Parameter]
     public ContractItemEditViewModel Item { get; set; }
+
+    [Parameter]
+    public bool IsReadOnly { get; set; }
 
     private bool _isSameQtyAsCart => _isExistingItemInCart && ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs[Item.Id].Quantity == OrderQuantity;
     private bool _isExistingItemInCart => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs.ContainsKey(Item.Id) ?? false;

@@ -31,13 +31,17 @@ namespace ShopQualityboltWeb.Controllers.Api
 	{
 		private readonly IConfiguration _configuration; // Added for configuration
 		private readonly IModelService<PunchOutSession, PunchOutSession> _service;
+		private readonly IModelService<QBExternalWebLibrary.Models.ContractItem, ContractItemEditViewModel> _contractItemService;
 		private readonly UserManager<ApplicationUser> _userManager;
+		private readonly IModelService<ShoppingCart, ShoppingCartEVM> _shoppingCartService;
 
-		public PunchOutSessionsController(IConfiguration configuration, IModelService<PunchOutSession, PunchOutSession> service, UserManager<ApplicationUser> userManager)
+		public PunchOutSessionsController(IConfiguration configuration, IModelService<PunchOutSession, PunchOutSession> service, UserManager<ApplicationUser> userManager, IModelService<QBExternalWebLibrary.Models.ContractItem, ContractItemEditViewModel> contractItemService, IModelService<ShoppingCart, ShoppingCartEVM> shoppingCartService)
 		{
 			_configuration = configuration;
 			_service = service;
 			_userManager = userManager;
+			_contractItemService = contractItemService;
+			_shoppingCartService = shoppingCartService;
 		}
 
 		[HttpPost("request-punch-out")]
@@ -170,21 +174,42 @@ namespace ShopQualityboltWeb.Controllers.Api
 				
 				if(punchOutSetupRequest.operation == PunchOutSetupRequestOperation.edit)
 				{
+					var usersShoppingCart = _shoppingCartService.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
+					if(usersShoppingCart == null)
+					{
+						return Unauthorized(CreateErrorResponse("401", "Could not find user's shopping cart to edit"));
+					}
+
+					List<ShoppingCartItemEVM> existingItems = new();
 					for (int i = 0; i < punchOutSetupRequest.ItemOut.Length; i++)
 					{
 						ItemOut item = punchOutSetupRequest.ItemOut[i];
 						if(item.ItemID != null)
 						{
 							SupplierPartAuxiliaryID supplierPartAuxiliaryID = item.ItemID.SupplierPartAuxiliaryID;
-							string custStockNumber = supplierPartAuxiliaryID?.Any?.FirstOrDefault()?.Value;
-							if (!string.IsNullOrEmpty(custStockNumber))
+							string contractItemId = supplierPartAuxiliaryID?.Any?.FirstOrDefault()?.Value;
+							if (!string.IsNullOrEmpty(contractItemId))
 							{
-								if(!int.TryParse(item.quantity, out int qty))
+								if(!int.TryParse(contractItemId, out int contractItemIdInt))
 								{
-									//TODO: Add cart item to some list for reinstantiation later on
+									if (!int.TryParse(item.quantity, out int qty))
+									{
+										//REFACTOR: instead of getting 1 by 1 inside foreach, pool them up and get all at once after foreach loop
+										QBExternalWebLibrary.Models.ContractItem contractItem = _contractItemService.GetById(contractItemIdInt);
+										if(contractItem != null)
+										{
+											existingItems.Add(new() { ContractItemId = contractItemIdInt, Quantity = qty, ShoppingCartId = usersShoppingCart.Id });
+										}
+									}
 								}
 							}
 						}
+					}
+
+					if (existingItems.Count > 0)
+					{
+						//TODO: clear the cart, then add existingItems to cart
+						//TODO: may want to find a way to atomtize this function with the "Post" function that comes next.
 					}
 				}
 

@@ -58,7 +58,7 @@
                     </MudTd>
                     <MudTd>@((item.Quantity * item.ContractItemEditViewModel.Price).ToString("C"))</MudTd>
                     <MudTd>
-                        <MudButton Color="Color.Error" OnClick="@(() => RemoveItem(item))" Disabled="@isLoading">
+                        <MudButton Color="Color.Error" OnClick="@(() => RemoveItem(item))" Disabled="@(isLoading || IsReadOnly)">
                             <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Class="mr-2" />Remove
                         </MudButton>
                     </MudTd>
@@ -73,13 +73,19 @@
                         <MudText>Total Price: @totalPrice.ToString("C")</MudText>
                     </div>
                     <div class="d-flex mt-2">
-                        <MudButton Color="Color.Primary" OnClick="PerformCheckout" Disabled="@isLoading" Class="mr-2">
+                        <MudButton Color="Color.Primary" OnClick="PerformCheckout" Disabled="@(isLoading || IsReadOnly)" Class="mr-2">
                             <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Size="Size.Small" Class="mr-2" />Check Out
                         </MudButton>
-                        <MudButton Color="Color.Secondary" OnClick="ClearCart" Disabled="@isLoading">
+                        <MudButton Color="Color.Secondary" OnClick="ClearCart" Disabled="@(isLoading || IsReadOnly)">
                             <MudIcon Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Class="mr-2" />Clear Cart
                         </MudButton>
                     </div>
+                    @if (IsReadOnly)
+                    {
+                        <div class="d-flex mt-2">
+                            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined">Inspect sessions are read only</MudAlert>
+                        </div>
+                    }
                 </MudItem>
             </MudGrid>
         }
@@ -91,6 +97,9 @@
 <MudDivider />
 
 @code {
+    [Parameter]
+    public bool IsReadOnly{ get; set; }
+
     private bool isLoading;
     private int totalQuantity => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Sum(item => item.Value.Quantity) ?? 0;
     private int totalItems => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Count() ?? 0;

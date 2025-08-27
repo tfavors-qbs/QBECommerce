@@ -16,6 +16,7 @@
 @inject IApiService<Thread, Thread> threadApiService
 @inject IApiService<Spec, Spec> specApiService
 @inject ShoppingCartManagementService ShoppingCartManagementService
+@inject PunchOutManagementService punchOutManagementService;
 @implements IDisposable
 
 <PageTitle>Quality Bolt and Screw - Catalog</PageTitle>
@@ -97,7 +98,7 @@
                         foreach (var item in _itemsToShow.GetRange(ShowStartIndex, ShowNumberOfResults)) {
                             ShoppingCartItemEVM existingCartItem = null;
                             ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs.TryGetValue(item.Id, out existingCartItem);
-                            <CatalogItem Item="item" OrderQuantity="existingCartItem?.Quantity ?? 1"></CatalogItem>
+                            <CatalogItem IsReadOnly="isReadOnly" Item="item" OrderQuantity="existingCartItem?.Quantity ?? 1"></CatalogItem>
                         }
                     }
                     @if (_itemsToShow != null && _itemsToShow.Count > 5) {
@@ -191,6 +192,8 @@
         }
 
     }
+
+    private bool isReadOnly => punchOutManagementService.CurrentPunchOutSession?.PunchOutOperation == Ariba.PunchOutSetupRequestOperation.inspect;
 
     protected override void OnInitialized()
     {

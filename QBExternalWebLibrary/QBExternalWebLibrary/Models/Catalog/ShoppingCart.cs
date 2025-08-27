@@ -101,7 +101,7 @@ namespace QBExternalWebLibrary.Models.Catalog
 								SupplierPartID = a.ContractItem.SKU.Name,
 								SupplierPartAuxiliaryID = new SupplierPartAuxiliaryID()
 								{
-									Any = MakeIdentityNodes(a.ContractItem.CustomerStkNo)
+									Any = MakeIdentityNodes(a.ContractItem.Id.ToString())
 								}
 							},
 							ItemDetail = new ItemDetail()
