@@ -209,7 +209,6 @@ namespace ShopQualityboltWeb.Controllers.Api
 					if (existingItems.Count > 0)
 					{
 						//TODO: clear the cart, then add existingItems to cart
-						//TODO: may want to find a way to atomtize this function with the "Post" function that comes next.
 					}
 				}
 
