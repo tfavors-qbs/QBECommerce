@@ -63,7 +63,9 @@
                     Adornment="Adornment.End"
                     AdornmentIcon="@_passwordInputIcon"
                     OnAdornmentClick="ShowPasswordToggle"
-                    AdornmentAriaLabel="Show Password">
+                    AdornmentAriaLabel="Show Password"
+                    OnKeyDown="OnPasswordKeyDown"
+                    Immediate="true">
                     </MudTextField>
 
                 </MudStack>
@@ -131,7 +133,7 @@
         navigationManager.NavigateTo($"{navigationManager.BaseUri}catalog");
     }
 
-    void ShowPasswordToggle() {
+    private void ShowPasswordToggle() {
         @if (_isShow) {
             _isShow = false;
             _passwordInputIcon = Icons.Material.Filled.VisibilityOff;
@@ -143,7 +145,7 @@
         }
     }
 
-    async void Submit() {
+    private async void Submit() {
         // var result = await AuthServ.LoginAsync(_userName, _password);
         var result = await Acct.LoginAsync(_userName, _password);
         if (!result.Succeeded) {
@@ -173,12 +175,19 @@
         // }
     }
 
-    async void Register() {
+    private async void Register() {
         var options = new DialogOptions { CloseOnEscapeKey = true };
         DialogService.Show<RegisterDialog>("Register", options);
     }
 
-    async void Logout() {
+    private async void Logout() {
         await Acct.LogoutAsync();
+    }
+
+    private async void OnPasswordKeyDown(KeyboardEventArgs e) {
+        if (e.Key == "Enter")
+        {
+            Submit();
+        }
     }
 }
