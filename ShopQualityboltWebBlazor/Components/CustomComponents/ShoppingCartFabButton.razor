@@ -50,7 +50,7 @@
         }
         else
         {
-            return $"{ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Count} Items";
+            return $"{ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Sum(x => x.Value.Quantity)} Items";
         }
     }
 }

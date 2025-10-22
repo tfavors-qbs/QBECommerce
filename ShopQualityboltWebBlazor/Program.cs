@@ -12,15 +12,20 @@ using Thread = QBExternalWebLibrary.Models.Products.Thread;
 using ShopQualityboltWebBlazor.Services;
 using QBExternalWebLibrary.Models.Catalog;
 using QBExternalWebLibrary.Models.Ariba;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Get API address from configuration based on environment
+string apiAddress = builder.Configuration["ApiSettings:BaseAddress"] 
+    ?? throw new InvalidOperationException("ApiSettings:BaseAddress is not configured");
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddMudServices();
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri("https://localhost:7237") });
+builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiAddress) });
 builder.Services.AddScoped<IApiService<SKU, SKUEditViewModel>, ApiService<SKU, SKUEditViewModel>>();
 builder.Services.AddScoped<IApiService<Length, Length>, ApiService<Length, Length>>();
 builder.Services.AddScoped<IApiService<Diameter, Diameter>, ApiService<Diameter, Diameter>>();
@@ -43,12 +48,12 @@ builder.Services.AddSingleton<PunchOutManagementService>();
 builder.Services.AddScoped<IAuthenticationApiService, IdentityApiService>();
 
 builder.Services.AddScoped(sp =>
-    new HttpClient { BaseAddress = new Uri(builder.Configuration["FrontendUrl"] ?? "https://localhost:7237") });
+    new HttpClient { BaseAddress = new Uri(builder.Configuration["FrontendUrl"] ?? apiAddress) });
 
 // configure client for auth interactions
 builder.Services.AddHttpClient(
     "Auth",
-    opt => opt.BaseAddress = new Uri(builder.Configuration["BackendUrl"] ?? "https://localhost:7237"))
+    opt => opt.BaseAddress = new Uri(builder.Configuration["BackendUrl"] ?? apiAddress))
     .AddHttpMessageHandler<CookieHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

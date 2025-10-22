@@ -11,9 +11,6 @@ namespace QBExternalWebLibrary.Services.Http
 {
     public class IdentityApiService : IAuthenticationApiService {
         private readonly HttpClient _httpClient;
-        private readonly string _apiHttpBase = "https://localhost:7237/";
-        private string _endpoint = "";
-
 
         public IdentityApiService(HttpClient httpClient)
         {

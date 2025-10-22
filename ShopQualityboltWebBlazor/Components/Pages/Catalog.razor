@@ -23,6 +23,7 @@
 
 <AuthorizeView>
     <Authorized>
+        <MudText>@Status</MudText>
         <MudGrid>
             <MudItem xs="12" sm="12" md="12" lg="3" xl="3">
                 <MudPaper Class="pa-4 d-flex flex-column overflow-x-auto" MaxHeight="@((15*_itemsPerPage).ToString() + "vh")">
@@ -170,6 +171,26 @@
     private SpecificationFilter _lengthFilter;
     private SpecificationFilter _diameterFilter;
 
+
+    private string Status
+    {
+        get
+        {
+            string status = "";
+            status = _items.Count == 0 ? status + "Items is empty.\n" : "";
+            status = _allLengths.Count == 0 ? status + "AllLengths is empty.\n" : "";
+            status = _classes.Count == 0 ? status + "Classes is empty.\n" : "";
+            status = _groups.Count == 0 ? status + "Groups is empty.\n" : "";
+            status = _shapes.Count == 0 ? status + "Shapes is empty.\n" : "";
+            status = _materials.Count == 0 ? status + "Materials is empty.\n" : "";
+            status = _coatings.Count == 0 ? status + "Coatings is empty.\n" : "";
+            status = _threads.Count == 0 ? status + "Threads is empty.\n" : "";
+            status = _specs.Count == 0 ? status + "Specs is empty.\n" : "";
+            status = _lengths.Count == 0 ? status + "Lengths is empty.\n" : "";
+            status = _diameters.Count == 0 ? status + "Diameters is empty.\n" : "";
+            return status;
+        }
+    }
 
     public int TotalPages {
         get {

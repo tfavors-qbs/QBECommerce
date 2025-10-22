@@ -115,6 +115,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 				var buyerCookie = punchOutSetupRequest.BuyerCookie.Any?.FirstOrDefault()?.Value ?? "";
 				var postUrl = punchOutSetupRequest.BrowserFormPost?.URL?.Value ?? "";
 				var email = punchOutSetupRequest.Contact?.FirstOrDefault()?.Email?.FirstOrDefault()?.Value;
+				email = punchOutSetupRequest.Extrinsic.Where(x => x.name == "ClientUserID")?.FirstOrDefault().Any[0].Value;
 				HttpContext.Session.SetString("BuyerCookie", buyerCookie);
 				HttpContext.Session.SetString("PostUrl", postUrl);
 
