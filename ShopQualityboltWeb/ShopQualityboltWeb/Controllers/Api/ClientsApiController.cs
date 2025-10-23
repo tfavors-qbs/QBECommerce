@@ -3,6 +3,7 @@ using QBExternalWebLibrary.Models;
 using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -16,11 +17,13 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpGet]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<Client>>> GetClients() {
             return _service.GetAll().ToList();
         }
 
         [HttpGet("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Client>> GetClient(int id) {
             var client = _service.GetById(id);
 
@@ -32,6 +35,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutClient(int id, ClientEditViewModel clientEVM) {
             if (id != clientEVM.Id) {
                 return BadRequest();
@@ -50,6 +54,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Client>> PostClient(ClientEditViewModel clientEVM) {
             if (_service.GetAll().Any(c => c.LegacyId == clientEVM.LegacyId)) {
                 return Conflict("A client already exists with the legacy id providied.");
@@ -60,6 +65,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteClient(int id) {
             var client = _service.GetById(id);
             if (client == null) {

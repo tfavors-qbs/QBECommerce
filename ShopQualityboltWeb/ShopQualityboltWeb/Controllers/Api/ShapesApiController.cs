@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -31,6 +32,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutShape(int id, Shape shape) {
             if (id != shape.Id) {
                 return BadRequest();
@@ -49,6 +51,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Shape>> PostShape(Shape shape) {
             if (_service.GetAll().Any(s => s.Name == shape.Name)) {
                 return Conflict("Shape with that name already exists.");
@@ -59,6 +62,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostShapes([FromBody] List<Shape> shapes) {
             shapes = shapes.Where(s => !_service.GetAll().Any(s2 => s2.Name == s.Name)).ToList();
             _service.CreateRange(shapes);
@@ -66,6 +70,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteShape(int id) {
             var shape = _service.GetById(id);
             if (shape == null) {

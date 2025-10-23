@@ -4,11 +4,13 @@ using QBExternalWebLibrary.Models.Catalog;
 using QBExternalWebLibrary.Models.Mapping;
 using QBExternalWebLibrary.Models;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api {
 
     [Route("api/shoppingcartitems")]
     [ApiController]
+    [Authorize]
     public class ShoppingCartItemsAPIController : Controller {
         private readonly IModelService<ShoppingCartItem, ShoppingCartItemEVM?> _service;
         private readonly IModelMapper<ShoppingCartItem, ShoppingCartItemEVM> _mapper;

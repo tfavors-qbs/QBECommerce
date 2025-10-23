@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -31,6 +32,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutClass(int id, Class @class) {
             if (id != @class.Id) {
                 return BadRequest();
@@ -49,6 +51,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Class>> PostClass(Class @class) {
             if (_service.GetAll().Any(c => c.Name == @class.Name)) {
                 return Conflict("Class with that name already exists.");
@@ -59,6 +62,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostClasses([FromBody] List<Class> classes) {
             classes = classes.Where(c => !_service.GetAll().Any(c2 => c2.Name == c.Name)).ToList();
             _service.CreateRange(classes);
@@ -66,6 +70,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteClass(int id) {
             var @class = _service.GetById(id);
             if (@class == null) {

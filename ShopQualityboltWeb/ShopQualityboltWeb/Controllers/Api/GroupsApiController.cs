@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -31,6 +32,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutGroup(int id, GroupEditViewModel groupEVM) {
             if (id != groupEVM.Id) {
                 return BadRequest();
@@ -49,6 +51,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Group>> PostGroup(GroupEditViewModel groupEVM) {
             if (_service.GetAll().Any(g => g.LegacyId == groupEVM.LegacyId && g.ClassId == groupEVM.ClassId)) {
                 return Conflict("Group with that legacy id already exists.");
@@ -59,6 +62,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostGroups([FromBody] List<GroupEditViewModel> groupEVMs) {
             groupEVMs = groupEVMs.Where(g => !_service.GetAll().Any(g2 => g2.ClassId == g.ClassId && g2.LegacyId == g.LegacyId)).ToList();
             _service.CreateRange(null, groupEVMs);
@@ -66,6 +70,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteGroup(int id) {
             var group = _service.GetById(id);
             if (group == null) {

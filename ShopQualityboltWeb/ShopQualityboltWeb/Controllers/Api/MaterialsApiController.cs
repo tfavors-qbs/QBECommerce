@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Data;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -41,6 +42,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         // PUT: api/MaterialsApi/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutMaterial(int id, Material material) {
             if (id != material.Id) {
                 return BadRequest();
@@ -64,6 +66,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         // POST: api/MaterialsApi
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Material>> PostMaterial(Material material) {
             if (_service.GetAll().Any(m => m.Name == material.Name)) {
                 return Conflict("Material with that name already exists.");
@@ -74,6 +77,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostMaterials([FromBody] List<Material> material) {
             material = material.Where(m => !_service.GetAll().Any(m2 => m2.Name == m.Name)).ToList();
             _service.CreateRange(material);
@@ -82,6 +86,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 
         // DELETE: api/MaterialsApi/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteMaterial(int id) {
             var material = _service.GetById(id);
             if (material == null) {

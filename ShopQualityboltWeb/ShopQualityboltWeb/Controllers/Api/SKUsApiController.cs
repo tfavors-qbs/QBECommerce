@@ -25,7 +25,6 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpGet("{id}")]
-        [Authorize]
         public async Task<ActionResult<SKU>> GetSKU(int id) {
             var sku = _service.GetById(id);
 
@@ -37,6 +36,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutSKU(int id, SKUEditViewModel skuEVM) {
              if (id != skuEVM.Id) {
                 return BadRequest();
@@ -55,6 +55,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<SKU>> PostSKU(SKUEditViewModel skuEVM) {
             if (_service.GetAll().Any(s => s.Name == skuEVM.Name)) {
                 return Conflict("SKU with that name already exists.");
@@ -65,6 +66,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostSKUs([FromBody] List<SKUEditViewModel> skuEVMs) {
             skuEVMs = skuEVMs.Where(s => !_service.GetAll().Any(s2 => s2.Name == s.Name)).ToList();
             _service.CreateRange(null, skuEVMs);
@@ -72,6 +74,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteSKU (int id) {
             var sku = _service.GetById(id);
             if (sku == null) {

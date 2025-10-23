@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using Thread = QBExternalWebLibrary.Models.Products.Thread;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -32,6 +33,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutThread(int id, Thread thread) {
             if (id != thread.Id) {
                 return BadRequest();
@@ -50,6 +52,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Thread>> PostThread(Thread thread) {
             if (_service.GetAll().Any(t => t.Name == thread.Name)) {
                 return Conflict("Thread with that name already exists.");
@@ -60,6 +63,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostThreads([FromBody] List<Thread> threads) {
             threads = threads.Where(t => !_service.GetAll().Any(t2 => t2.Name == t.Name)).ToList();
             _service.CreateRange(threads);
@@ -67,6 +71,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteThread(int id) {
             var thread = _service.GetById(id);
             if (thread == null) {

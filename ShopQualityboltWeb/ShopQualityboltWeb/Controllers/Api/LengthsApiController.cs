@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -31,6 +32,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutLength(int id, Length length) {
             if (id != length.Id) {
                 return BadRequest();
@@ -49,6 +51,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Length>> PostLength(Length length) {
             if (_service.GetAll().Any(l => l.Name ==  length.Name)) {
                 Conflict("A length already exists with this name.");
@@ -59,6 +62,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostLength([FromBody] List<Length> lengths) {
             lengths = lengths.Where(l => !_service.GetAll().Any(l2 => l2.Name == l.Name)).ToList();
             _service.CreateRange(lengths);
@@ -66,6 +70,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteLength(int id) {
             var length = _service.GetById(id);
             if (length == null) {

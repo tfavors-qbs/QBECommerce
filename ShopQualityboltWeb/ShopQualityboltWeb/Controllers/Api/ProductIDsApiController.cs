@@ -3,6 +3,7 @@ using QBExternalWebLibrary.Models;
 using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -32,6 +33,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutProductID(int id, ProductIDEditViewModel productIDEVM) {
             if (id != productIDEVM.Id) {
                 return BadRequest();
@@ -50,6 +52,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<ProductID>> PostProductID(ProductIDEditViewModel productIDEVM) {
             if (_service.GetAll().Any(p => p.LegacyName == productIDEVM.LegacyName)) {
                 return Conflict("ProductID with that name already exists.");
@@ -60,6 +63,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostProductIDs([FromBody] List<ProductIDEditViewModel> productIDEVMs) {
             productIDEVMs = productIDEVMs.Where(p => !_service.GetAll().Any(p2 => p2.LegacyName == p.LegacyName)).ToList();
             _service.CreateRange(null, productIDEVMs);
@@ -67,6 +71,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteProductID(int id) {
             var productID = _service.GetById(id);
             if (productID == null) {

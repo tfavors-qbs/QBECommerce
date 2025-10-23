@@ -35,17 +35,29 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpGet("{id}")]
+        [Authorize]
         public async Task<ActionResult<ContractItem>> GetContractItem(int id) {
+            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized(new { message = "User is not authenticated." });
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound(new {message = "User not found."});
+            
             var contractItem = _service.GetById(id);
 
             if (contractItem == null) {
                 return NotFound();
             }
 
+            // Verify user has access to this contract item
+            if (contractItem.ClientId != user.ClientId) {
+                return Forbid();
+            }
+
             return contractItem;
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutContractItem(int id, ContractItemEditViewModel contractItemEVM) {
             if (id != contractItemEVM.Id) {
                 return BadRequest();
@@ -64,6 +76,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<ContractItem>> PostContractItem(ContractItemEditViewModel contractItemEVM) {
             if (_service.GetAll().Any(ci => ci.CustomerStkNo == contractItemEVM.CustomerStkNo && ci.ClientId == contractItemEVM.ClientId)) {
                 return Conflict("Contract already exists.");
@@ -74,6 +87,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostContractItems([FromBody] List<ContractItemEditViewModel> contractItemEVMs) {
             contractItemEVMs = contractItemEVMs.Where(ci => !_service.GetAll().Any(ci2 => ci2.CustomerStkNo == ci.CustomerStkNo
                         && ci2.ClientId == ci.ClientId)).ToList();
@@ -82,6 +96,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteContractItem(int id) {
             var contractItem = _service.GetById(id);
             if (contractItem == null) {

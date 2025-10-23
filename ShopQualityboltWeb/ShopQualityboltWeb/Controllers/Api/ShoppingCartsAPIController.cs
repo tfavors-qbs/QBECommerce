@@ -14,6 +14,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
 
     [Route("api/shoppingcarts")]
     [ApiController]
+    [Authorize]
     public class ShoppingCartsAPIController : Controller {
         private readonly IModelService<ShoppingCart, ShoppingCartEVM> _service;
         private readonly IModelMapper<ShoppingCart, ShoppingCartEVM> _mapper;

@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -31,6 +32,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutCoating(int id, Coating coating) {
             if (id != coating.Id) {
                 return BadRequest();
@@ -49,6 +51,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Coating>> PostCoating(Coating coating) {
             if (_service.GetAll().Any(c => c.Name == coating.Name)) {
                 return Conflict("Coating with that name already exists.");
@@ -59,6 +62,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostCoatings([FromBody] List<Coating> coatings) {
             coatings = coatings.Where(c => !_service.GetAll().Any(c2 => c2.Name == c.Name)).ToList();
             _service.CreateRange(coatings);
@@ -66,6 +70,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteCoating(int id) {
             var coating = _service.GetById(id);
             if (coating == null) {

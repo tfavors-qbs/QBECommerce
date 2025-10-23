@@ -45,6 +45,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 		}
 
 		[HttpPost("request-punch-out")]
+		[AllowAnonymous]
 		public async Task<ActionResult> Register()
 		{
 			try
@@ -266,12 +267,14 @@ namespace ShopQualityboltWeb.Controllers.Api
 		}
 
 		[HttpGet]
+		[Authorize(Roles = "Admin")]
 		public async Task<ActionResult<IEnumerable<PunchOutSession>>> GetSessions()
 		{
 			return _service.GetAll().ToList();
 		}
 
 		[HttpGet("{id}")]
+		[Authorize(Roles = "Admin")]
 		public async Task<ActionResult<PunchOutSession>> GetSession(int id)
 		{
 			var session = _service.GetById(id);
@@ -285,6 +288,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 		}
 
 		[HttpGet("sessionid/{sessionId}")]
+		[AllowAnonymous]
 		public async Task<ActionResult<PunchOutSession>> GetSessionBySessionId(string sessionId)
 		{
 			var session = _service.Find(a => a.SessionId == sessionId).FirstOrDefault();
@@ -298,6 +302,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 		}
 
 		[HttpPut("{id}")]
+		[Authorize(Roles = "Admin")]
 		public async Task<ActionResult<PunchOutSession>> PutSession(int id, PunchOutSession session)
 		{
 			if (id != session.Id)
@@ -326,6 +331,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 		}
 
 		[HttpPost]
+		[Authorize(Roles = "Admin")]
 		public async Task<ActionResult<PunchOutSession>> PostSession(PunchOutSession session)
 		{
 			if (_service.GetAll().Any(c => c.SessionId == session.SessionId))
@@ -339,6 +345,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 		}
 
 		[HttpDelete("{id}")]
+		[Authorize(Roles = "Admin")]
 		public async Task<IActionResult> DeleteSession(int id)
 		{
 			var session = _service.GetById(id);

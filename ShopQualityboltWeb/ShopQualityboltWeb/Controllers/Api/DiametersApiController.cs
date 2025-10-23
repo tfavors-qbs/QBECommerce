@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Model;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ShopQualityboltWeb.Controllers.Api {
     [Route("api/diameters")]
@@ -30,6 +31,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
         }
 
         [HttpPut("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutDiameter(int id, Diameter diameter) {
             if (id != diameter.Id) {
                 return BadRequest();
@@ -48,6 +50,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Diameter>> PostDiameter(Diameter diameter) {
             if (_service.GetAll().Any(d => d.Name == diameter.Name)) {
                 return Conflict("Diameter with that name already exists.");
@@ -58,6 +61,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
         }
 
         [HttpPost("range")]
+        [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostDiameter([FromBody] List<Diameter> diameters) {
             diameters = diameters.Where(d => !_service.GetAll().Any(d2 => d2.Name == d.Name)).ToList();
             _service.CreateRange(diameters);
@@ -65,6 +69,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteDiameter(int id) {
             var diameter = _service.GetById(id);
             if (diameter == null) {
