@@ -18,9 +18,12 @@ using QBExternalWebLibrary.Models.Ariba;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddControllersWithViews();
+// Add services to the container - API only
 builder.Services.AddControllers();
+
+// Add distributed memory cache for session support
+builder.Services.AddDistributedMemoryCache();
+
 builder.Services.AddSession(options =>
 {
 	options.IdleTimeout = TimeSpan.FromMinutes(30); // Session timeout
@@ -102,8 +105,7 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment()) {
-    app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
+    app.UseExceptionHandler("/api/error"); // API error endpoint instead of MVC
     app.UseHsts();
 }
 
@@ -135,7 +137,6 @@ app.MapGet("/roles", (ClaimsPrincipal user) => {
     return Results.Unauthorized();
 }).RequireAuthorization();
 
-
 app.UseRouting();
 
 app.UseAuthentication();
@@ -149,8 +150,7 @@ app.MapPost("/logout", async (SignInManager<ApplicationUser> signInManager, [Fro
     return Results.Unauthorized();
 }).WithOpenApi().RequireAuthorization();
 
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
+// Map API controllers only
+app.MapControllers();
 
 app.Run();
