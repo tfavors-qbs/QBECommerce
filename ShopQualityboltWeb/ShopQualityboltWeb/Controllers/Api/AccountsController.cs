@@ -166,6 +166,7 @@ namespace ShopQualityboltWeb.Controllers.Api {
 
             var user = await _userManager.FindByIdAsync(userId);
             var clientName = user.ClientId == null ? null : _clientService.GetById(user.ClientId).Name;
+            var roles = await _userManager.GetRolesAsync(user);
 
             if (user == null)
                 return NotFound(new { message = "User not found." });
@@ -176,7 +177,8 @@ namespace ShopQualityboltWeb.Controllers.Api {
                 FamilyName = user.FamilyName,
                 ClientId = user.ClientId,
                 IsEmailConfirmed = user.EmailConfirmed,
-                ClientName = clientName
+                ClientName = clientName,
+                Roles = roles.ToList()
             };
 
             return Ok(userInfo);

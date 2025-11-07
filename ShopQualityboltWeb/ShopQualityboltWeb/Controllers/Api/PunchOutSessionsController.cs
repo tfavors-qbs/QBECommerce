@@ -86,20 +86,21 @@ namespace ShopQualityboltWeb.Controllers.Api
 					return BadRequest(CreateErrorResponse("400", "Invalid or missing PunchOutSetupRequest"));
 				}
 
-				var from = header?.From?.FirstOrDefault(c => c.domain == "DUNS")?.Identity?.Any?.FirstOrDefault()?.Value ?? "";
+				var from = header?.From?.FirstOrDefault(c => c.domain == "DUNS" || c.domain == "NetworkID")?.Identity?.Any?.FirstOrDefault()?.Value ?? "";
 				if (string.IsNullOrEmpty(from))
 				{
 					return BadRequest(CreateErrorResponse("400", "Invalid header or From identity"));
 				}
 
-				var credential = header?.Sender?.Credential?.FirstOrDefault(c => c.domain == "NetworkId");
+				var credential = header?.Sender?.Credential?.FirstOrDefault(c => c.domain == "NetworkId" || c.domain == "AribaNetworkUserId");
 				// Validate credentials (e.g., SharedSecret)
 				if (header == null || credential?.Item is not SharedSecret sharedSecret)
 				{
 					return BadRequest(CreateErrorResponse("400", "Invalid header or shared secret credential"));
 				}
 
-				string aribaId = credential?.Identity.Any?.FirstOrDefault()?.Value;
+				string aribaId = header?.From?[0].Identity?.Any?.FirstOrDefault()?.Value ?? "";
+
 				if (header == null || string.IsNullOrEmpty(aribaId))
 				{
 					return BadRequest(CreateErrorResponse("400", "Invalid ariba credential"));
@@ -116,7 +117,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 				var buyerCookie = punchOutSetupRequest.BuyerCookie.Any?.FirstOrDefault()?.Value ?? "";
 				var postUrl = punchOutSetupRequest.BrowserFormPost?.URL?.Value ?? "";
 				var email = punchOutSetupRequest.Contact?.FirstOrDefault()?.Email?.FirstOrDefault()?.Value;
-				email = punchOutSetupRequest.Extrinsic.Where(x => x.name == "ClientUserID")?.FirstOrDefault().Any[0].Value;
+				email = punchOutSetupRequest.Extrinsic.Where(x => x.name == "UserEmail")?.FirstOrDefault().Any[0].Value;
 				HttpContext.Session.SetString("BuyerCookie", buyerCookie);
 				HttpContext.Session.SetString("PostUrl", postUrl);
 

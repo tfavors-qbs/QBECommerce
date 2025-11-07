@@ -20,7 +20,7 @@
 <MudText Class="my-2" Typo="Typo.h5">Client Portal</MudText>
 <AuthorizeView>
     <Authorized>
-        <MudText Class="mb-4">Welcome back!</MudText>
+        <MudText Class="mb-4">Welcome back, @context.User.Identity.Name!</MudText>
     </Authorized>
     <NotAuthorized>
         <MudText Class="mb-4">Welcome to Quality Bolt and Screw client portal, please login!</MudText>

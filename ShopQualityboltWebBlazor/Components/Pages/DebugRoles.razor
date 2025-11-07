@@ -1,0 +1,86 @@
+@page "/debug/my-roles"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Debug - My Roles</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-4">
+    <MudPaper Class="pa-4">
+        <MudText Typo="Typo.h4" Class="mb-4">Current User Roles Debug</MudText>
+        
+        <AuthorizeView>
+            <Authorized>
+                <MudAlert Severity="Severity.Success" Class="mb-4">You are logged in</MudAlert>
+                
+                <MudText Typo="Typo.h6">User Information:</MudText>
+                <MudList T="string">
+                    <MudListItem T="string">
+                        <strong>Name:</strong> @context.User.Identity?.Name
+                    </MudListItem>
+                    <MudListItem T="string">
+                        <strong>Is Authenticated:</strong> @context.User.Identity?.IsAuthenticated
+                    </MudListItem>
+                </MudList>
+
+                <MudText Typo="Typo.h6" Class="mt-4">Roles:</MudText>
+                @if (roles.Any())
+                {
+                    <MudList T="string">
+                        @foreach (var role in roles)
+                        {
+                            <MudListItem T="string">
+                                <MudChip T="string" Color="Color.Primary">@role</MudChip>
+                            </MudListItem>
+                        }
+                    </MudList>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Warning">No roles assigned to this user</MudAlert>
+                }
+
+                <MudText Typo="Typo.h6" Class="mt-4">All Claims:</MudText>
+                <MudList T="string" Dense="true">
+                    @foreach (var claim in context.User.Claims)
+                    {
+                        <MudListItem T="string">
+                            <strong>@claim.Type:</strong> @claim.Value
+                        </MudListItem>
+                    }
+                </MudList>
+
+                <MudDivider Class="my-4" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/admin/users">
+                    Try Admin Page
+                </MudButton>
+            </Authorized>
+            <NotAuthorized>
+                <MudAlert Severity="Severity.Error">You are not logged in</MudAlert>
+                <MudButton Class="mt-2" Variant="Variant.Filled" Color="Color.Primary" Href="/login">
+                    Go to Login
+                </MudButton>
+            </NotAuthorized>
+        </AuthorizeView>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private List<string> roles = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            roles = user.Claims
+                .Where(c => c.Type == System.Security.Claims.ClaimTypes.Role || 
+                           c.Type == "role" ||
+                           c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role")
+                .Select(c => c.Value)
+                .ToList();
+        }
+    }
+}

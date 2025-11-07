@@ -1,0 +1,220 @@
+@using QBExternalWebLibrary.Services.Http
+@using QBExternalWebLibrary.Models
+@inject IUserApiService UserApiService
+@inject IApiService<Client, ClientEditViewModel> ClientService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="@isValid">
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="model.Email" 
+                                  Label="Email" 
+                                  Required="true" 
+                                  RequiredError="Email is required"
+                                  Validation="@(new Func<string, string>(ValidateEmail))" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="model.Password" 
+                                  Label="Password" 
+                                  InputType="InputType.Password"
+                                  Required="@(User == null)"
+                                  RequiredError="Password is required"
+                                  HelperText="@(User != null ? "Leave blank to keep current password" : "")" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="model.GivenName" 
+                                  Label="Given Name" 
+                                  Required="true" 
+                                  RequiredError="Given name is required" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="model.FamilyName" 
+                                  Label="Family Name" 
+                                  Required="true" 
+                                  RequiredError="Family name is required" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="model.AribaId" 
+                                  Label="Ariba ID" 
+                                  Required="true" 
+                                  RequiredError="Ariba ID is required" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudSelect @bind-Value="model.ClientId" 
+                               Label="Client" 
+                               T="int?"
+                               Clearable="true">
+                        @foreach (var client in clients)
+                        {
+                            <MudSelectItem Value="@((int?)client.Id)">@client.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect @bind-SelectedValues="selectedRoles" 
+                               @bind-SelectedValues:after="OnRolesChanged"
+                               Label="Roles" 
+                               T="string"
+                               MultiSelection="true"
+                               HelperText="Select one or more roles for this user">
+                        @foreach (var role in availableRoles)
+                        {
+                            <MudSelectItem T="string" Value="@role">@role</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                @if (User != null)
+                {
+                    <MudItem xs="12">
+                        <MudCheckBox @bind-Value="model.IsDisabled" Label="Disabled" Color="Color.Error" />
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Submit" Disabled="@(!isValid || saving)">
+            @if (saving)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+            }
+            @(User == null ? "Create" : "Update")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; }
+    [Parameter] public UserViewModel? User { get; set; }
+
+    private MudForm form;
+    private bool isValid;
+    private bool saving;
+    private UserFormModel model = new();
+    private List<ClientEditViewModel> clients = new();
+    private List<string> availableRoles = new();
+    private IEnumerable<string> selectedRoles = new HashSet<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load clients and roles
+        var clientList = await ClientService.GetAllAsync();
+        clients = clientList?.ToList() ?? new List<ClientEditViewModel>();
+        
+        availableRoles = await UserApiService.GetRolesAsync() ?? new List<string>();
+
+        // Initialize form model
+        if (User != null)
+        {
+            model = new UserFormModel
+            {
+                Email = User.Email ?? string.Empty,
+                GivenName = User.GivenName ?? string.Empty,
+                FamilyName = User.FamilyName ?? string.Empty,
+                AribaId = User.AribaId ?? string.Empty,
+                ClientId = User.ClientId,
+                IsDisabled = User.IsDisabled
+            };
+            
+            // Handle null Roles collection
+            selectedRoles = User.Roles?.ToList() ?? new List<string>();
+        }
+    }
+
+    private string ValidateEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return "Email is required";
+        
+        if (!email.Contains("@") || !email.Contains("."))
+            return "Invalid email address";
+        
+        return null;
+    }
+
+    private async Task OnRolesChanged()
+    {
+        await form.Validate();
+        StateHasChanged();
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private async Task Submit()
+    {
+        await form.Validate();
+
+        if (!isValid)
+        {
+            return;
+        }
+
+        saving = true;
+
+        try
+        {
+            if (User == null)
+            {
+                // Create new user
+                var request = new CreateUserRequest
+                {
+                    Email = model.Email,
+                    Password = model.Password,
+                    GivenName = model.GivenName,
+                    FamilyName = model.FamilyName,
+                    AribaId = model.AribaId,
+                    ClientId = model.ClientId,
+                    Roles = selectedRoles.ToList()
+                };
+
+                await UserApiService.CreateUserAsync(request);
+                Snackbar.Add("User created successfully", Severity.Success);
+            }
+            else
+            {
+                // Update existing user
+                var request = new UpdateUserRequest
+                {
+                    Email = model.Email,
+                    Password = string.IsNullOrWhiteSpace(model.Password) ? null : model.Password,
+                    GivenName = model.GivenName,
+                    FamilyName = model.FamilyName,
+                    AribaId = model.AribaId,
+                    ClientId = model.ClientId,
+                    IsDisabled = model.IsDisabled,
+                    Roles = selectedRoles.ToList()
+                };
+
+                await UserApiService.UpdateUserAsync(User.Id, request);
+                Snackbar.Add("User updated successfully", Severity.Success);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving user: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private class UserFormModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string GivenName { get; set; } = string.Empty;
+        public string FamilyName { get; set; } = string.Empty;
+        public string AribaId { get; set; } = string.Empty;
+        public int? ClientId { get; set; }
+        public bool IsDisabled { get; set; }
+    }
+}

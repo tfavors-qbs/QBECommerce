@@ -34,7 +34,10 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<DataContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnectionString")));
 
-builder.Services.AddIdentityApiEndpoints<ApplicationUser>().AddEntityFrameworkStores<DataContext>().AddDefaultTokenProviders();
+builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<DataContext>()
+    .AddDefaultTokenProviders();
 
 builder.Services.AddScoped<IRepository<Coating>, EFRepository<Coating>>();
 builder.Services.AddScoped<IModelService<Coating, Coating?>, ModelService<Coating, Coating?>>();
@@ -102,6 +105,66 @@ builder.Services.AddScoped<IModelService<PunchOutSession, PunchOutSession?>, Mod
 builder.Services.AddScoped<IModelMapper<PunchOutSession, PunchOutSession>, GenericMapper<PunchOutSession, PunchOutSession>>();
 
 var app = builder.Build();
+
+// Automatically apply pending migrations on startup
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+    
+    try
+    {
+        logger.LogInformation("Starting database migration...");
+        var context = services.GetRequiredService<DataContext>();
+        
+        // Apply any pending migrations
+        var pendingMigrations = context.Database.GetPendingMigrations();
+        if (pendingMigrations.Any())
+        {
+            logger.LogInformation("Applying {Count} pending migrations: {Migrations}", 
+                pendingMigrations.Count(), 
+                string.Join(", ", pendingMigrations));
+            
+            context.Database.Migrate();
+            logger.LogInformation("Database migration completed successfully");
+        }
+        else
+        {
+            logger.LogInformation("No pending migrations found");
+        }
+        
+        // Seed roles
+        logger.LogInformation("Seeding roles...");
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+        var roles = new[] { "Admin", "User" };
+
+        foreach (var role in roles)
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+            {
+                logger.LogInformation("Creating role: {Role}", role);
+                await roleManager.CreateAsync(new IdentityRole(role));
+            }
+            else
+            {
+                logger.LogInformation("Role already exists: {Role}", role);
+            }
+        }
+        
+        logger.LogInformation("Role seeding completed successfully");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while migrating or seeding the database.");
+        logger.LogError("Connection String (sanitized): Server={Server};Database={Database}", 
+            builder.Configuration.GetConnectionString("DefaultConnectionString")?.Split(';')[0],
+            builder.Configuration.GetConnectionString("DefaultConnectionString")?.Split(';')[1]);
+        
+        // Don't throw - let the app start so we can see the error in logs
+        // But log it prominently
+        logger.LogCritical("DATABASE MIGRATION FAILED - Application may not function correctly!");
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment()) {

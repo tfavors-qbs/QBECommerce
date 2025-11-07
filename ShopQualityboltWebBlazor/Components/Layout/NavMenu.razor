@@ -7,6 +7,21 @@
     <AuthorizeView>
         <Authorized>
             <MudNavLink Href="catalog" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Shop">Catalog</MudNavLink>
+            
+            @* Admin section - only visible to Admin users *@
+            <AuthorizeView Roles="Admin" Context="adminContext">
+                <Authorized>
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.body2" Class="px-4 mud-text-secondary">Administration</MudText>
+                    <MudNavLink Href="admin/users" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.People">User Management</MudNavLink>
+                </Authorized>
+            </AuthorizeView>
+            
+            @* Debug Tools *@
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.body2" Class="px-4 mud-text-secondary">Debug Tools</MudText>
+            <MudNavLink Href="debug/migration-status" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Storage">Migration Status</MudNavLink>
+            <MudNavLink Href="debug/my-roles" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.VerifiedUser">My Roles</MudNavLink>
         </Authorized>
         <NotAuthorized>
             <MudNavLink Disabled="true" Href="catalog" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Shop">Catalog</MudNavLink>

@@ -1,0 +1,166 @@
+@page "/admin/users"
+@using QBExternalWebLibrary.Services.Http
+@using QBExternalWebLibrary.Models
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using ShopQualityboltWebBlazor.Components.CustomComponents
+@attribute [Authorize(Roles = "Admin")]
+@inject IUserApiService UserApiService
+@inject IApiService<Client, ClientEditViewModel> ClientService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>User Management</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">User Management</MudText>
+
+    <MudPaper Class="pa-4 mb-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => OpenUserDialog(null))">
+            <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+            Create New User
+        </MudButton>
+    </MudPaper>
+
+    <MudPaper>
+        <MudTable Items="@users" Loading="@loading" Hover="true" Striped="true" Dense="true">
+            <HeaderContent>
+                <MudTh>Email</MudTh>
+                <MudTh>Given Name</MudTh>
+                <MudTh>Family Name</MudTh>
+                <MudTh>Ariba ID</MudTh>
+                <MudTh>Client</MudTh>
+                <MudTh>Roles</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Email">@context.Email</MudTd>
+                <MudTd DataLabel="Given Name">@context.GivenName</MudTd>
+                <MudTd DataLabel="Family Name">@context.FamilyName</MudTd>
+                <MudTd DataLabel="Ariba ID">@context.AribaId</MudTd>
+                <MudTd DataLabel="Client">@context.ClientName</MudTd>
+                <MudTd DataLabel="Roles">
+                    @if (context.Roles != null && context.Roles.Any())
+                    {
+                        @string.Join(", ", context.Roles)
+                    }
+                    else
+                    {
+                        <span class="mud-text-secondary">No roles</span>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Status">
+                    @if (context.IsDisabled)
+                    {
+                        <MudChip T="string" Color="Color.Error" Size="Size.Small">Disabled</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">Active</MudChip>
+                    }
+                </MudTd>
+                <MudTd DataLabel="Actions">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" OnClick="@(() => OpenUserDialog(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" OnClick="@(() => DeleteUser(context))" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private List<UserViewModel> users = new();
+    private bool loading = true;
+    private bool isAuthenticated;
+    private List<string> userRoles = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check authentication state for debugging
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
+        
+        if (isAuthenticated)
+        {
+            userRoles = user.Claims
+                .Where(c => c.Type == System.Security.Claims.ClaimTypes.Role || 
+                           c.Type == "role" ||
+                           c.Type == "http://schemas.microsoft.com/ws/2008/06/identity/claims/role")
+                .Select(c => c.Value)
+                .ToList();
+        }
+
+        await LoadUsers();
+    }
+
+    private async Task LoadUsers()
+    {
+        loading = true;
+        try
+        {
+            users = await UserApiService.GetAllUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading users: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task OpenUserDialog(UserViewModel? user)
+    {
+        var parameters = new DialogParameters();
+        parameters.Add("User", user);
+
+        var options = new DialogOptions 
+        { 
+            CloseOnEscapeKey = true,
+            MaxWidth = MaxWidth.Medium,
+            FullWidth = true
+        };
+
+        var dialog = await DialogService.ShowAsync<UserDialog>(
+            user == null ? "Create New User" : "Edit User",
+            parameters,
+            options
+        );
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await LoadUsers();
+        }
+    }
+
+    private async Task DeleteUser(UserViewModel user)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Confirm Delete",
+            $"Are you sure you want to delete user {user.Email}?",
+            yesText: "Delete",
+            cancelText: "Cancel"
+        );
+
+        if (result == true)
+        {
+            try
+            {
+                await UserApiService.DeleteUserAsync(user.Id);
+                Snackbar.Add($"User {user.Email} deleted successfully", Severity.Success);
+                await LoadUsers();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting user: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

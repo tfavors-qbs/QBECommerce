@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bootstrap Admin - Test Page</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button.secondary {
+            background: #6c757d;
+        }
+        button.secondary:hover {
+            background: #545b62;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>?? Bootstrap Admin Access</h1>
+        
+        <div class="warning">
+            <strong>?? TEMPORARY TESTING PAGE</strong><br>
+            This page tests the bootstrap endpoint. Delete after use!
+        </div>
+
+        <div class="form-group">
+            <label for="apiUrl">API URL:</label>
+            <input type="text" id="apiUrl" value="https://shop.qualitybolt.com" placeholder="https://shop.qualitybolt.com">
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email:</label>
+            <input type="email" id="email" value="tfavors@qualitybolt.com" placeholder="your@email.com">
+        </div>
+
+        <div class="form-group">
+            <label for="secret">Bootstrap Secret:</label>
+            <input type="password" id="secret" value="TempAdminBootstrap2024!" placeholder="Your secret from appsettings.json">
+        </div>
+
+        <button onclick="testHealth()">Test Health</button>
+        <button onclick="grantAdmin()">Grant Admin</button>
+        <button onclick="listUsers()" class="secondary">List Users</button>
+
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = `result ${type}`;
+            resultDiv.innerHTML = message;
+            resultDiv.style.display = 'block';
+        }
+
+        async function testHealth() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            showResult('Testing...', 'info');
+
+            try {
+                const response = await fetch(`${apiUrl}/api/bootstrap/health`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult(`
+                        <strong>? SUCCESS - Controller is active!</strong><br><br>
+                        <strong>Details:</strong><br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `, 'success');
+                } else {
+                    showResult(`
+                        <strong>? Error</strong><br>
+                        Status: ${response.status}<br>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `, 'error');
+                }
+            } catch (error) {
+                showResult(`
+                    <strong>? Network Error</strong><br>
+                    ${error.message}<br><br>
+                    <strong>Possible causes:</strong><br>
+                    • Controller not deployed<br>
+                    • Server not running<br>
+                    • CORS issue<br>
+                    • URL incorrect
+                `, 'error');
+            }
+        }
+
+        async function grantAdmin() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const email = document.getElementById('email').value;
+            const secret = document.getElementById('secret').value;
+
+            showResult('Granting admin role...', 'info');
+
+            try {
+                const response = await fetch(`${apiUrl}/api/bootstrap/grant-admin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        secret: secret
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult(`
+                        <strong>? SUCCESS!</strong><br><br>
+                        <strong>${data.message}</strong><br><br>
+                        Email: ${data.email}<br>
+                        Roles: ${data.roles.join(', ')}<br><br>
+                        <strong>Next steps:</strong><br>
+                        1. Login to the application<br>
+                        2. Navigate to /admin/users<br>
+                        3. Delete BootstrapAdminController.cs<br>
+                        4. Remove BootstrapSecret from appsettings<br>
+                        5. Redeploy
+                    `, 'success');
+                } else {
+                    showResult(`
+                        <strong>? Failed</strong><br>
+                        Status: ${response.status}<br><br>
+                        ${data.error || JSON.stringify(data)}<br><br>
+                        <strong>Common issues:</strong><br>
+                        • Wrong email address<br>
+                        • User doesn't exist (register first)<br>
+                        • Wrong secret<br>
+                        • Roles not seeded
+                    `, 'error');
+                }
+            } catch (error) {
+                showResult(`
+                    <strong>? Network Error</strong><br>
+                    ${error.message}
+                `, 'error');
+            }
+        }
+
+        async function listUsers() {
+            const apiUrl = document.getElementById('apiUrl').value;
+            const secret = document.getElementById('secret').value;
+
+            showResult('Fetching users...', 'info');
+
+            try {
+                const response = await fetch(`${apiUrl}/api/bootstrap/list-users?secret=${encodeURIComponent(secret)}`);
+                const data = await response.json();
+
+                if (response.ok) {
+                    let userList = '<strong>? Users:</strong><br><br>';
+                    data.forEach(user => {
+                        userList += `
+                            <strong>${user.email}</strong><br>
+                            Name: ${user.givenName} ${user.familyName}<br>
+                            Roles: ${user.roles.join(', ') || 'None'}<br><br>
+                        `;
+                    });
+                    showResult(userList, 'success');
+                } else {
+                    showResult(`
+                        <strong>? Error</strong><br>
+                        ${data.error || JSON.stringify(data)}
+                    `, 'error');
+                }
+            } catch (error) {
+                showResult(`
+                    <strong>? Network Error</strong><br>
+                    ${error.message}
+                `, 'error');
+            }
+        }
+
+        // Auto-test health on page load
+        window.addEventListener('load', function() {
+            console.log('Bootstrap Admin Test Page loaded');
+            console.log('Click "Test Health" to verify the controller is deployed');
+        });
+    </script>
+</body>
+</html>

@@ -37,8 +37,10 @@ builder.Services.AddScoped<IApiService<Coating, Coating>, ApiService<Coating, Co
 builder.Services.AddScoped<IApiService<Thread, Thread>, ApiService<Thread, Thread>>();
 builder.Services.AddScoped<IApiService<Spec, Spec>, ApiService<Spec, Spec>>();
 builder.Services.AddScoped<IApiService<ShoppingCart, ShoppingCartEVM>, ApiService<ShoppingCart, ShoppingCartEVM>>();
+builder.Services.AddScoped<IApiService<Client, ClientEditViewModel>, ApiService<Client, ClientEditViewModel>>();
 builder.Services.AddScoped<ShoppingCartItemApiService>();
 builder.Services.AddScoped<PunchOutSessionApiService>();
+builder.Services.AddScoped<IUserApiService, UserApiService>();
 builder.Services.AddScoped<LocalStorageService>();
 builder.Services.AddTransient<CookieHandler>();
 builder.Services.AddSingleton<ShoppingCartPageApiService>();//TODO: Really not sure i want this one to be a singleton, but i need it to be to be able to use it from ShoppingCartManagementService

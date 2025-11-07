@@ -1,0 +1,265 @@
+@page "/debug/migration-status"
+@using System.Net.Http.Json
+@inject HttpClient HttpClient
+@inject ISnackbar Snackbar
+
+<PageTitle>Migration Status - Debug</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudPaper Class="pa-4">
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.h4">?? Database Migration Status</MudText>
+            
+            <MudAlert Severity="Severity.Info">
+                This page checks if the database migrations have been applied successfully on the production server.
+            </MudAlert>
+
+            <MudButton Variant="Variant.Filled" 
+                       Color="Color.Primary" 
+                       OnClick="CheckStatus" 
+                       Disabled="@loading">
+                @if (loading)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">Checking...</MudText>
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.Refresh" Class="mr-2" />
+                    <MudText>Check Migration Status</MudText>
+                }
+            </MudButton>
+
+            @if (healthData != null)
+            {
+                <MudDivider />
+                
+                <MudText Typo="Typo.h6">Health Check Results</MudText>
+                
+                <MudSimpleTable Dense="true" Bordered="true">
+                    <tbody>
+                        <tr>
+                            <td><strong>Status</strong></td>
+                            <td>@healthData.Status</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Environment</strong></td>
+                            <td>@healthData.Environment</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Bootstrap Configured</strong></td>
+                            <td>
+                                @if (healthData.BootstrapConfigured)
+                                {
+                                    <MudChip T="string" Color="Color.Success" Size="Size.Small">Yes</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Color="Color.Warning" Size="Size.Small">No</MudChip>
+                                }
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Timestamp</strong></td>
+                            <td>@healthData.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        </tr>
+                    </tbody>
+                </MudSimpleTable>
+
+                @if (healthData.Database != null)
+                {
+                    <MudText Typo="Typo.h6" Class="mt-4">Database Status</MudText>
+                    
+                    <MudSimpleTable Dense="true" Bordered="true">
+                        <tbody>
+                            <tr>
+                                <td><strong>Roles Table Exists</strong></td>
+                                <td>
+                                    @if (healthData.Database.RolesTableExists)
+                                    {
+                                        <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">Yes - Ready to use!</MudChip>
+                                    }
+                                    else
+                                    {
+                                        <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Error">No - Migration needed!</MudChip>
+                                    }
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Applied Migrations Count</strong></td>
+                                <td>@healthData.Database.AppliedMigrationsCount</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Last Applied Migration</strong></td>
+                                <td><code>@healthData.Database.LastAppliedMigration</code></td>
+                            </tr>
+                        </tbody>
+                    </MudSimpleTable>
+
+                    @if (healthData.Database.PendingMigrations?.Any() == true)
+                    {
+                        <MudAlert Severity="Severity.Warning" Class="mt-4">
+                            <MudText Typo="Typo.h6">?? Pending Migrations Found!</MudText>
+                            <MudText>The following migrations have NOT been applied:</MudText>
+                            <MudList T="string" Dense="true">
+                                @foreach (var migration in healthData.Database.PendingMigrations)
+                                {
+                                    <MudListItem T="string" Icon="@Icons.Material.Filled.ErrorOutline" IconColor="Color.Error">
+                                        <code>@migration</code>
+                                    </MudListItem>
+                                }
+                            </MudList>
+                        </MudAlert>
+                        
+                        <MudAlert Severity="Severity.Error" Class="mt-2">
+                            <MudText Typo="Typo.body1"><strong>Action Required:</strong></MudText>
+                            <MudList T="string" Dense="true">
+                                <MudListItem T="string">1. Contact server admin to restart the application</MudListItem>
+                                <MudListItem T="string">2. Or manually run the migration SQL script</MudListItem>
+                                <MudListItem T="string">3. Check application logs for migration errors</MudListItem>
+                            </MudList>
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mt-4" Icon="@Icons.Material.Filled.CheckCircle">
+                            ? All migrations applied successfully!
+                        </MudAlert>
+                    }
+
+                    @if (!healthData.Database.RolesTableExists)
+                    {
+                        <MudAlert Severity="Severity.Error" Class="mt-4">
+                            <MudText Typo="Typo.h6">? Roles Table Missing!</MudText>
+                            <MudText Class="mt-2">The AddIdentityRoles migration did not run successfully.</MudText>
+                            <MudDivider Class="my-2" />
+                            <MudText Typo="Typo.body2"><strong>Possible Causes:</strong></MudText>
+                            <MudList T="string" Dense="true">
+                                <MudListItem T="string">• Migration failed during startup (check logs)</MudListItem>
+                                <MudListItem T="string">• Database permissions issue</MudListItem>
+                                <MudListItem T="string">• Connection string incorrect</MudListItem>
+                            </MudList>
+                            <MudDivider Class="my-2" />
+                            <MudText Typo="Typo.body2"><strong>Solutions:</strong></MudText>
+                            <MudList T="string" Dense="true">
+                                <MudListItem T="string">1. Ask server admin to check application event logs</MudListItem>
+                                <MudListItem T="string">2. Ask server admin to restart the application</MudListItem>
+                                <MudListItem T="string">3. Manually run the SQL migration script</MudListItem>
+                            </MudList>
+                        </MudAlert>
+                    }
+                }
+            }
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-4">
+                    <MudText Typo="Typo.h6">? Error Accessing Health Endpoint</MudText>
+                    <MudText Class="mt-2">@errorMessage</MudText>
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.body2"><strong>This could mean:</strong></MudText>
+                    <MudList T="string" Dense="true">
+                        <MudListItem T="string">• The API application is not running</MudListItem>
+                        <MudListItem T="string">• The BootstrapAdminController was not deployed</MudListItem>
+                        <MudListItem T="string">• Network/firewall issue</MudListItem>
+                        <MudListItem T="string">• Incorrect API base URL</MudListItem>
+                    </MudList>
+                </MudAlert>
+            }
+
+            <MudDivider Class="my-4" />
+            
+            <MudText Typo="Typo.h6">Next Steps</MudText>
+            
+            @if (healthData?.Database?.RolesTableExists == true && healthData?.Database?.PendingMigrations?.Any() != true)
+            {
+                <MudAlert Severity="Severity.Success">
+                    <MudText><strong>? Database is ready!</strong></MudText>
+                    <MudText Class="mt-2">You can now grant admin access:</MudText>
+                    <MudButton Variant="Variant.Filled" 
+                               Color="Color.Primary" 
+                               Href="/admin/users" 
+                               Class="mt-2">
+                        Go to User Management
+                    </MudButton>
+                </MudAlert>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Warning">
+                    <MudText>Database migrations are not complete. Contact your server administrator to:</MudText>
+                    <MudList T="string" Dense="true">
+                        <MudListItem T="string">1. Check application logs for errors</MudListItem>
+                        <MudListItem T="string">2. Restart the application/IIS pool</MudListItem>
+                        <MudListItem T="string">3. Manually apply migrations if needed</MudListItem>
+                    </MudList>
+                </MudAlert>
+            }
+        </MudStack>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private bool loading = false;
+    private HealthCheckResponse? healthData = null;
+    private string? errorMessage = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckStatus();
+    }
+
+    private async Task CheckStatus()
+    {
+        loading = true;
+        errorMessage = null;
+        healthData = null;
+        StateHasChanged();
+
+        try
+        {
+            healthData = await HttpClient.GetFromJsonAsync<HealthCheckResponse>("api/bootstrap/health");
+            
+            if (healthData?.Database?.RolesTableExists == true)
+            {
+                Snackbar.Add("? Database is ready!", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("?? Roles table not found - migration needed", Severity.Warning);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            errorMessage = $"HTTP Error: {ex.Message}";
+            Snackbar.Add("? Failed to connect to health endpoint", Severity.Error);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+            Snackbar.Add("? Error checking status", Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    public class HealthCheckResponse
+    {
+        public string Status { get; set; }
+        public DateTime Timestamp { get; set; }
+        public string Environment { get; set; }
+        public bool BootstrapConfigured { get; set; }
+        public DatabaseInfo Database { get; set; }
+    }
+
+    public class DatabaseInfo
+    {
+        public List<string> PendingMigrations { get; set; }
+        public int AppliedMigrationsCount { get; set; }
+        public string LastAppliedMigration { get; set; }
+        public bool RolesTableExists { get; set; }
+    }
+}

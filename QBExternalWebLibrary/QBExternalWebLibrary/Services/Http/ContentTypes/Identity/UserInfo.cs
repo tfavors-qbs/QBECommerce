@@ -40,6 +40,11 @@ namespace QBExternalWebLibrary.Services.Http.ContentTypes.Identity {
         public bool IsEmailConfirmed { get; set; }
 
         /// <summary>
+        /// The list of roles assigned to the user.
+        /// </summary>
+        public List<string> Roles { get; set; } = [];
+
+        /// <summary>
         /// The list of claims for the user.
         /// </summary>
         public Dictionary<string, string> Claims { get; set; } = [];
