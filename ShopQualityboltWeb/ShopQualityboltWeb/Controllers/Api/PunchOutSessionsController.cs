@@ -57,8 +57,10 @@ namespace ShopQualityboltWeb.Controllers.Api
 					cxmlString = await reader.ReadToEndAsync();
 				}
 
-				// Deserialize cXML
-				var serializer = new XmlSerializer(typeof(cXML));
+                //remove & symbols that break deserialization
+				cxmlString = cxmlString.Replace("&", "&amp;");
+                // Deserialize cXML
+                var serializer = new XmlSerializer(typeof(cXML));
 				cXML cxmlRequest;
 				using (var stringReader = new StringReader(cxmlString))
 				{
