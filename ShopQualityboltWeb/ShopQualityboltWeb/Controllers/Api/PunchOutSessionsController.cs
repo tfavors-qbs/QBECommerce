@@ -110,7 +110,14 @@ namespace ShopQualityboltWeb.Controllers.Api
 
 				// Extract SharedSecret value from Any property
 				string sharedSecretValue = sharedSecret.Any?.FirstOrDefault()?.Value;
-				if (string.IsNullOrEmpty(sharedSecretValue) || sharedSecretValue != "abracadabra") //TODO: store secret somewhere good
+				string expectedSharedSecret = _configuration["Ariba:SharedSecret"];
+				
+				if (string.IsNullOrEmpty(sharedSecretValue) || string.IsNullOrEmpty(expectedSharedSecret))
+				{
+					return Unauthorized(CreateErrorResponse("401", "Invalid credentials"));
+				}
+				
+				if (sharedSecretValue != expectedSharedSecret)
 				{
 					return Unauthorized(CreateErrorResponse("401", "Invalid credentials"));
 				}
