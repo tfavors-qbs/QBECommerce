@@ -128,6 +128,9 @@ namespace ShopQualityboltWeb.Controllers.Api
 
 				string newSessionId = $"{Random.Shared.Next(10000000, 99999999)}";
 
+				// Get the base URL from configuration (BlazorAppUrl for production, or default for development)
+				string baseUrl = _configuration["AppSettings:BlazorAppUrl"] ?? "https://localhost:7169";
+
 				// Create PunchOutSetupResponse
 				var response = new cXML
 				{
@@ -143,7 +146,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 							{
 								StartPage = new StartPage
 								{
-									URL = new(){ Value = $"https://localhost:7169/login?sessionId={newSessionId}" }
+									URL = new(){ Value = $"{baseUrl}/login?sessionId={newSessionId}" }
 								}
 							}
 						}
