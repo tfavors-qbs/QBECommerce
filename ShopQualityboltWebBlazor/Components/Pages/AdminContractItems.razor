@@ -1,0 +1,272 @@
+@page "/admin/contract-items"
+@using QBExternalWebLibrary.Services.Http
+@using QBExternalWebLibrary.Models
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using QBExternalWebLibrary.Models.Products
+@using System.Net.Http.Json
+@using ShopQualityboltWebBlazor.Components.CustomComponents
+@attribute [Authorize(Roles = "Admin")]
+@inject IApiService<ContractItem, ContractItemEditViewModel> ContractItemService
+@inject IApiService<Client, ClientEditViewModel> ClientService
+@inject IApiService<SKU, SKUEditViewModel> SKUService
+@inject IApiService<Diameter, Diameter> DiameterService
+@inject IApiService<Length, Length> LengthService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Contract Items Management</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">Contract Items Management</MudText>
+
+    <MudPaper Class="pa-4 mb-4">
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudSelect T="int?" @bind-Value="selectedClientId" Label="Select Client" Variant="Variant.Outlined" 
+                           Required="true" RequiredError="Please select a client" AdornmentIcon="@Icons.Material.Filled.Business"
+                           AdornmentColor="Color.Primary">
+                    @if (clients != null)
+                    {
+                        foreach (var client in clients)
+                        {
+                            <MudSelectItem Value="@((int?)client.Id)">@client.Name</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="6" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadContractItems" Disabled="@(selectedClientId == null)">
+                    <MudIcon Icon="@Icons.Material.Filled.Search" Class="mr-2" />
+                    Load Contract Items
+                </MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="OpenCreateDialog" 
+                           Disabled="@(selectedClientId == null)" Class="ml-2">
+                    <MudIcon Icon="@Icons.Material.Filled.Add" Class="mr-2" />
+                    Add New Item
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    @if (loading)
+    {
+        <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+        <MudText Align="Align.Center" Typo="Typo.h6">Loading contract items...</MudText>
+    }
+    else if (contractItems != null && contractItems.Any())
+    {
+        <MudPaper>
+            <MudTable Items="@contractItems" Hover="true" Striped="true" Dense="true" Filter="new Func<ContractItemEditViewModel,bool>(FilterFunc)">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">Contract Items for @GetSelectedClientName()</MudText>
+                    <MudSpacer />
+                    <MudTextField @bind-Value="searchString" Placeholder="Search" Adornment="Adornment.Start" 
+                                  AdornmentIcon="@Icons.Material.Filled.Search" IconSize="Size.Medium" Class="mt-0"></MudTextField>
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Customer Stock #</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Price</MudTh>
+                    <MudTh>SKU</MudTh>
+                    <MudTh>Diameter</MudTh>
+                    <MudTh>Length</MudTh>
+                    <MudTh>Non-Stock</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Customer Stock #">@context.CustomerStkNo</MudTd>
+                    <MudTd DataLabel="Description">@context.Description</MudTd>
+                    <MudTd DataLabel="Price">@context.Price.ToString("C")</MudTd>
+                    <MudTd DataLabel="SKU">@context.SKUName</MudTd>
+                    <MudTd DataLabel="Diameter">@context.DiameterName</MudTd>
+                    <MudTd DataLabel="Length">@context.LengthName</MudTd>
+                    <MudTd DataLabel="Non-Stock">
+                        @if (context.NonStock)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Non-Stock</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">In Stock</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => OpenEditDialog(context))" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => DeleteContractItem(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager />
+                </PagerContent>
+            </MudTable>
+        </MudPaper>
+    }
+    else if (selectedClientId != null && !loading)
+    {
+        <MudAlert Severity="Severity.Info">No contract items found for the selected client.</MudAlert>
+    }
+</MudContainer>
+
+@code {
+    private List<ClientEditViewModel> clients = new();
+    private List<ContractItemEditViewModel> contractItems = new();
+    private List<SKUEditViewModel> skus = new();
+    private List<Diameter> diameters = new();
+    private List<Length> lengths = new();
+    private int? selectedClientId;
+    private bool loading = false;
+    private string searchString = "";
+    private HttpClient _httpClient;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("Auth");
+        await LoadClients();
+        await LoadReferenceData();
+    }
+
+    private async Task LoadClients()
+    {
+        try
+        {
+            var result = await ClientService.GetAllAsync();
+            clients = result.ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading clients: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadReferenceData()
+    {
+        try
+        {
+            skus = (await SKUService.GetAllAsync()).ToList();
+            diameters = (await DiameterService.GetAllAsync()).ToList();
+            lengths = (await LengthService.GetAllAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading reference data: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LoadContractItems()
+    {
+        if (selectedClientId == null) return;
+
+        loading = true;
+        try
+        {
+            var response = await _httpClient.GetAsync($"api/contractitems/admin/client/{selectedClientId.Value}");
+            if (response.IsSuccessStatusCode)
+            {
+                contractItems = (await response.Content.ReadFromJsonAsync<List<ContractItemEditViewModel>>()) ?? new List<ContractItemEditViewModel>();
+                Snackbar.Add($"Loaded {contractItems.Count} contract items", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add($"Error loading contract items: {response.StatusCode}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading contract items: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private string GetSelectedClientName()
+    {
+        if (selectedClientId == null) return "";
+        return clients.FirstOrDefault(c => c.Id == selectedClientId.Value)?.Name ?? "";
+    }
+
+    private bool FilterFunc(ContractItemEditViewModel item)
+    {
+        if (string.IsNullOrWhiteSpace(searchString))
+            return true;
+        if (item.CustomerStkNo.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (item.Description.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (item.SKUName != null && item.SKUName.Contains(searchString, StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        if (selectedClientId == null) return;
+
+        var parameters = new DialogParameters
+        {
+            { nameof(ContractItemDialog.ContractItem), new ContractItemEditViewModel { ClientId = selectedClientId.Value, ClientName = GetSelectedClientName() } },
+            { nameof(ContractItemDialog.IsEdit), false },
+            { nameof(ContractItemDialog.SKUs), skus },
+            { nameof(ContractItemDialog.Diameters), diameters },
+            { nameof(ContractItemDialog.Lengths), lengths },
+            { nameof(ContractItemDialog.ContractItemService), ContractItemService }
+        };
+
+        var dialog = await DialogService.ShowAsync<ContractItemDialog>("Create Contract Item", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await LoadContractItems();
+        }
+    }
+
+    private async Task OpenEditDialog(ContractItemEditViewModel item)
+    {
+        var parameters = new DialogParameters
+        {
+            { nameof(ContractItemDialog.ContractItem), item },
+            { nameof(ContractItemDialog.IsEdit), true },
+            { nameof(ContractItemDialog.SKUs), skus },
+            { nameof(ContractItemDialog.Diameters), diameters },
+            { nameof(ContractItemDialog.Lengths), lengths },
+            { nameof(ContractItemDialog.ContractItemService), ContractItemService }
+        };
+
+        var dialog = await DialogService.ShowAsync<ContractItemDialog>("Edit Contract Item", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await LoadContractItems();
+        }
+    }
+
+    private async Task DeleteContractItem(ContractItemEditViewModel item)
+    {
+        bool? result = await DialogService.ShowMessageBox(
+            "Confirm Delete",
+            $"Are you sure you want to delete contract item '{item.CustomerStkNo}'?",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                await ContractItemService.DeleteAsync(item.Id);
+                Snackbar.Add("Contract item deleted successfully", Severity.Success);
+                await LoadContractItems();
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error deleting contract item: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+}

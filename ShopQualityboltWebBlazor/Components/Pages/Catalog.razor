@@ -23,112 +23,120 @@
 
 <AuthorizeView>
     <Authorized>
-        <MudText>@Status</MudText>
-        <MudGrid>
-            <MudItem xs="12" sm="12" md="12" lg="3" xl="3">
-                <MudPaper Class="pa-4 d-flex flex-column overflow-x-auto" MaxHeight="@((15*_itemsPerPage).ToString() + "vh")">
+        @if (_isLoading)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-7" />
+            <MudText Align="Align.Center" Typo="Typo.h6">Loading catalog items...</MudText>
+        }
+        else
+        {
+            @* <MudText>@Status</MudText> *@
+            <MudGrid>
+                <MudItem xs="12" sm="12" md="12" lg="3" xl="3">
+                    <MudPaper Class="pa-4 d-flex flex-column overflow-x-auto" MaxHeight="@((15*_itemsPerPage).ToString() + "vh")">
+                        <MudStack>
+                            <MudText Typo="Typo.h5">Filters</MudText>
+                            @if (_classes != null && _classes.Count != 0) {
+                                <SpecificationFilter SelectionChanged="ClassSelectionChanged" Title="Classes" Specifications="_classes" MultiSelect="false"></SpecificationFilter>
+                            }
+                            <SpecificationFilter @ref="_groupFilter" SelectionChanged="GroupSelectionChanged" Title="Groups" Specifications="_groups" MultiSelect="true"></SpecificationFilter>
+                            @if (_diameters != null && _diameters.Count != 0) {
+                                <SpecificationFilter @ref="_diameterFilter" SelectionChanged="DiameterSelectionChanged" Title="Diameters" Specifications="_diameters" MultiSelect="true"></SpecificationFilter>
+                            }
+                            @if (_lengths != null && _lengths.Count != 0) {
+                                <SpecificationFilter @ref="_lengthFilter" SelectionChanged="LengthSelectionChanged" Title="Lengths" Specifications="_lengths" MultiSelect="true"></SpecificationFilter>
+                            }
+                            @if (_shapes != null && _shapes.Count != 0) {
+                                <SpecificationFilter @ref="_shapeFilter" SelectionChanged="ShapeSelectionChanged" Title="Shapes" Specifications="_shapes" MultiSelect="true"></SpecificationFilter>
+                            }
+                            @if (_materials != null && _materials.Count != 0) {
+                                <SpecificationFilter @ref="_materialFilter" SelectionChanged="MaterialSelectionChanged" Title="Materials" Specifications="_materials" MultiSelect="true"></SpecificationFilter>
+                            }
+                            @if (_coatings != null && _coatings.Count != 0) {
+                                <SpecificationFilter @ref="_coatingFilter" SelectionChanged="CoatingSelectionChanged" Title="Coatings" Specifications="_coatings" MultiSelect="true"></SpecificationFilter>
+                            }
+                            @if (_threads != null && _threads.Count != 0) {
+                                <SpecificationFilter @ref="_threadFilter" SelectionChanged="ThreadSelectionChanged" Title="Threads" Specifications="_threads" MultiSelect="true"></SpecificationFilter>
+                            }
+                            @if (_specs != null && _specs.Count != 0) {
+                                <SpecificationFilter @ref="_specFilter" SelectionChanged="SpecSelectionChanged" Title="Specifications" Specifications="_specs" MultiSelect="true"></SpecificationFilter>
+                            }
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" sm="12" md="12" lg="9" xl="9">
                     <MudStack>
-                        <MudText Typo="Typo.h5">Filters</MudText>
-                        @if (_classes != null && _classes.Count != 0) {
-                            <SpecificationFilter SelectionChanged="ClassSelectionChanged" Title="Classes" Specifications="_classes" MultiSelect="false"></SpecificationFilter>
+                        <MudPaper Class="mb-4 pa-4" Elevation="2">
+                            <MudGrid Class="d-flex align-end">
+                                <MudItem xs="12">
+                                    <MudText Typo="Typo.h5">@context.User.Claims.Where(x => x.Type == "ClientName").FirstOrDefault().Value - Catalog Items</MudText>
+                                </MudItem>
+                                <MudItem xs="2"><MudText>Results: @_itemsToShow?.Count</MudText></MudItem>
+                                <MudItem xs="10"><MudTextField @bind-Value="_searchString" Immediate="true" TextChanged="@Filter" Label="Quick Filter"></MudTextField></MudItem>
+                            </MudGrid>
+                        </MudPaper>
+
+                        @if (_itemsToShow != null && _itemsToShow.Count != 0) {
+                            <MudGrid>
+                                <MudItem xs="12" sm="12" md="12" lg="12" xl="7">
+                                    <MudStack AlignItems="AlignItems.Center">
+                                        <MudPagination @bind-Selected="@_pageSelected" Color="Color.Primary" Count="TotalPages"></MudPagination>
+                                    </MudStack>
+                                </MudItem>
+                                <MudItem xs="12" sm="12" md="12" lg="12" xl="5">
+                                    <MudGrid>
+                                        <MudItem xs="6">
+                                            <MudText Class="d-flex align-center justify-end mud-width-full mud-height-full">Items Per Page:</MudText>
+                                        </MudItem>
+                                        <MudItem xs="6" Class="d-flex align-center justify-start mud-width-full mud-height-full">
+                                            <MudChipSet T="int" @bind-SelectedValue="_itemsPerPage" CheckMark SelectionMode="@SelectionMode.SingleSelection">
+                                                <MudChip Text="10" Value="10">10</MudChip>
+                                                <MudChip Text="25" Value="25">25</MudChip>
+                                                <MudChip Text="50" Value="50">50</MudChip>
+                                            </MudChipSet>
+
+                                        </MudItem>
+                                    </MudGrid>
+                                </MudItem>
+                            </MudGrid>
+                        } else {
+                            <MudText Typo="Typo.body1">No Results</MudText>
                         }
-                        <SpecificationFilter @ref="_groupFilter" SelectionChanged="GroupSelectionChanged" Title="Groups" Specifications="_groups" MultiSelect="true"></SpecificationFilter>
-                        @if (_diameters != null && _diameters.Count != 0) {
-                            <SpecificationFilter @ref="_diameterFilter" SelectionChanged="DiameterSelectionChanged" Title="Diameters" Specifications="_diameters" MultiSelect="true"></SpecificationFilter>
+                        @if (_itemsToShow != null && _itemsToShow.Count != 0) {
+                            foreach (var item in _itemsToShow.GetRange(ShowStartIndex, ShowNumberOfResults)) {
+                                ShoppingCartItemEVM existingCartItem = null;
+                                ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs.TryGetValue(item.Id, out existingCartItem);
+                                <CatalogItem IsReadOnly="isReadOnly" Item="item" OrderQuantity="existingCartItem?.Quantity ?? 1"></CatalogItem>
+                            }
                         }
-                        @if (_lengths != null && _lengths.Count != 0) {
-                            <SpecificationFilter @ref="_lengthFilter" SelectionChanged="LengthSelectionChanged" Title="Lengths" Specifications="_lengths" MultiSelect="true"></SpecificationFilter>
-                        }
-                        @if (_shapes != null && _shapes.Count != 0) {
-                            <SpecificationFilter @ref="_shapeFilter" SelectionChanged="ShapeSelectionChanged" Title="Shapes" Specifications="_shapes" MultiSelect="true"></SpecificationFilter>
-                        }
-                        @if (_materials != null && _materials.Count != 0) {
-                            <SpecificationFilter @ref="_materialFilter" SelectionChanged="MaterialSelectionChanged" Title="Materials" Specifications="_materials" MultiSelect="true"></SpecificationFilter>
-                        }
-                        @if (_coatings != null && _coatings.Count != 0) {
-                            <SpecificationFilter @ref="_coatingFilter" SelectionChanged="CoatingSelectionChanged" Title="Coatings" Specifications="_coatings" MultiSelect="true"></SpecificationFilter>
-                        }
-                        @if (_threads != null && _threads.Count != 0) {
-                            <SpecificationFilter @ref="_threadFilter" SelectionChanged="ThreadSelectionChanged" Title="Threads" Specifications="_threads" MultiSelect="true"></SpecificationFilter>
-                        }
-                        @if (_specs != null && _specs.Count != 0) {
-                            <SpecificationFilter @ref="_specFilter" SelectionChanged="SpecSelectionChanged" Title="Specifications" Specifications="_specs" MultiSelect="true"></SpecificationFilter>
+                        @if (_itemsToShow != null && _itemsToShow.Count > 5) {
+                            <MudGrid>
+                                <MudItem xs="8">
+                                    <MudStack AlignItems="AlignItems.Center">
+                                        <MudPagination @bind-Selected="@_pageSelected" Color="Color.Primary" Count="TotalPages"></MudPagination>
+                                    </MudStack>
+                                </MudItem>
+                                <MudItem xs="4">
+                                    <MudGrid>
+                                        <MudItem xs="6">
+                                            <MudText Class="d-flex align-center justify-end mud-width-full mud-height-full">Items Per Page:</MudText>
+                                        </MudItem>
+                                        <MudItem xs="6" Class="d-flex align-center justify-start mud-width-full mud-height-full">
+                                            <MudChipSet T="int" @bind-SelectedValue="_itemsPerPage" CheckMark SelectionMode="@SelectionMode.SingleSelection">
+                                                <MudChip Text="10" Value="10">10</MudChip>
+                                                <MudChip Text="25" Value="25">25</MudChip>
+                                                <MudChip Text="50" Value="50">50</MudChip>
+                                            </MudChipSet>
+
+                                        </MudItem>
+                                    </MudGrid>
+                                </MudItem>
+                            </MudGrid>
                         }
                     </MudStack>
-                </MudPaper>
-            </MudItem>
-            <MudItem xs="12" sm="12" md="12" lg="9" xl="9">
-                <MudStack>
-                    <MudPaper Class="mb-4 pa-4" Elevation="2">
-                        <MudGrid Class="d-flex align-end">
-                            <MudItem xs="12">
-                                <MudText Typo="Typo.h5">@context.User.Claims.Where(x => x.Type == "ClientName").FirstOrDefault().Value - Catalog Items</MudText>
-                            </MudItem>
-                            <MudItem xs="2"><MudText>Results: @_itemsToShow?.Count</MudText></MudItem>
-                            <MudItem xs="10"><MudTextField @bind-Value="_searchString" Immediate="true" TextChanged="@Filter" Label="Quick Filter"></MudTextField></MudItem>
-                        </MudGrid>
-                    </MudPaper>
-
-                    @if (_itemsToShow != null && _itemsToShow.Count != 0) {
-                        <MudGrid>
-                            <MudItem xs="12" sm="12" md="12" lg="12" xl="7">
-                                <MudStack AlignItems="AlignItems.Center">
-                                    <MudPagination @bind-Selected="@_pageSelected" Color="Color.Primary" Count="TotalPages"></MudPagination>
-                                </MudStack>
-                            </MudItem>
-                            <MudItem xs="12" sm="12" md="12" lg="12" xl="5">
-                                <MudGrid>
-                                    <MudItem xs="6">
-                                        <MudText Class="d-flex align-center justify-end mud-width-full mud-height-full">Items Per Page:</MudText>
-                                    </MudItem>
-                                    <MudItem xs="6" Class="d-flex align-center justify-start mud-width-full mud-height-full">
-                                        <MudChipSet T="int" @bind-SelectedValue="_itemsPerPage" CheckMark SelectionMode="@SelectionMode.SingleSelection">
-                                            <MudChip Text="10" Value="10">10</MudChip>
-                                            <MudChip Text="25" Value="25">25</MudChip>
-                                            <MudChip Text="50" Value="50">50</MudChip>
-                                        </MudChipSet>
-
-                                    </MudItem>
-                                </MudGrid>
-                            </MudItem>
-                        </MudGrid>
-                    } else {
-                        <MudText Typo="Typo.body1">No Results</MudText>
-                    }
-                    @if (_itemsToShow != null && _itemsToShow.Count != 0) {
-                        foreach (var item in _itemsToShow.GetRange(ShowStartIndex, ShowNumberOfResults)) {
-                            ShoppingCartItemEVM existingCartItem = null;
-                            ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs.TryGetValue(item.Id, out existingCartItem);
-                            <CatalogItem IsReadOnly="isReadOnly" Item="item" OrderQuantity="existingCartItem?.Quantity ?? 1"></CatalogItem>
-                        }
-                    }
-                    @if (_itemsToShow != null && _itemsToShow.Count > 5) {
-                        <MudGrid>
-                            <MudItem xs="8">
-                                <MudStack AlignItems="AlignItems.Center">
-                                    <MudPagination @bind-Selected="@_pageSelected" Color="Color.Primary" Count="TotalPages"></MudPagination>
-                                </MudStack>
-                            </MudItem>
-                            <MudItem xs="4">
-                                <MudGrid>
-                                    <MudItem xs="6">
-                                        <MudText Class="d-flex align-center justify-end mud-width-full mud-height-full">Items Per Page:</MudText>
-                                    </MudItem>
-                                    <MudItem xs="6" Class="d-flex align-center justify-start mud-width-full mud-height-full">
-                                        <MudChipSet T="int" @bind-SelectedValue="_itemsPerPage" CheckMark SelectionMode="@SelectionMode.SingleSelection">
-                                            <MudChip Text="10" Value="10">10</MudChip>
-                                            <MudChip Text="25" Value="25">25</MudChip>
-                                            <MudChip Text="50" Value="50">50</MudChip>
-                                        </MudChipSet>
-
-                                    </MudItem>
-                                </MudGrid>
-                            </MudItem>
-                        </MudGrid>
-                    }
-                </MudStack>
-            </MudItem>
-        </MudGrid>
+                </MudItem>
+            </MudGrid>
+        }
     </Authorized>
     <NotAuthorized>
         Not logged in, no catalog is available.
@@ -137,6 +145,7 @@
 
 
 @code {
+    private bool _isLoading = true;
     private string _searchString = "";
     private int _pageSelected = 1;
     private int _itemsPerPage = 10;
@@ -224,6 +233,8 @@
     }
 
     protected override async Task OnInitializedAsync() {
+        _isLoading = true;
+        
         await ShoppingCartManagementService.RefreshUserShoppingCart();
 
         _items.Clear();
@@ -247,6 +258,8 @@
 
             _itemsToShow = _items.OrderBy(i => _allDiameters.Where(d => d.Id == i.DiameterId).FirstOrDefault()?.Value).ToList();
         }
+        
+        _isLoading = false;
     }
 
     public void Dispose()

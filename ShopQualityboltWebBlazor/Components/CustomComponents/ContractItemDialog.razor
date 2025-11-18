@@ -1,0 +1,142 @@
+@using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Models.Products
+@using QBExternalWebLibrary.Services.Http
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudTextField @bind-Value="ContractItem.CustomerStkNo" Label="Customer Stock Number" 
+                              Required="true" RequiredError="Customer stock number is required" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudNumericField @bind-Value="ContractItem.Price" Label="Price" Format="N2" 
+                                 Required="true" RequiredError="Price is required" Min="0m" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="ContractItem.Description" Label="Description" 
+                              Lines="3" Required="true" RequiredError="Description is required" />
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudSelect T="int?" @bind-Value="ContractItem.SKUId" Label="SKU" 
+                           Required="true" RequiredError="SKU is required">
+                    @if (SKUs != null)
+                    {
+                        foreach (var sku in SKUs)
+                        {
+                            <MudSelectItem Value="@((int?)sku.Id)">@sku.Name</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudSelect T="int?" @bind-Value="ContractItem.DiameterId" Label="Diameter">
+                    <MudSelectItem Value="@((int?)null)">None</MudSelectItem>
+                    @if (Diameters != null)
+                    {
+                        foreach (var diameter in Diameters.OrderBy(d => d.Value))
+                        {
+                            <MudSelectItem Value="@((int?)diameter.Id)">@diameter.DisplayName</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudSelect T="int?" @bind-Value="ContractItem.LengthId" Label="Length">
+                    <MudSelectItem Value="@((int?)null)">None</MudSelectItem>
+                    @if (Lengths != null)
+                    {
+                        foreach (var length in Lengths.OrderBy(l => l.Value))
+                        {
+                            <MudSelectItem Value="@((int?)length.Id)">@length.DisplayName</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudSwitch @bind-Value="ContractItem.NonStock" Label="Non-Stock Item" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Client: @ContractItem.ClientName
+                </MudText>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save">
+            @(IsEdit ? "Update" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public ContractItemEditViewModel ContractItem { get; set; } = new();
+
+    [Parameter]
+    public bool IsEdit { get; set; }
+
+    [Parameter]
+    public List<SKUEditViewModel> SKUs { get; set; } = new();
+
+    [Parameter]
+    public List<Diameter> Diameters { get; set; } = new();
+
+    [Parameter]
+    public List<Length> Lengths { get; set; } = new();
+
+    [Parameter]
+    public IApiService<ContractItem, ContractItemEditViewModel> ContractItemService { get; set; }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(ContractItem.CustomerStkNo))
+        {
+            Snackbar.Add("Customer stock number is required", Severity.Error);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(ContractItem.Description))
+        {
+            Snackbar.Add("Description is required", Severity.Error);
+            return;
+        }
+
+        if (ContractItem.SKUId == null)
+        {
+            Snackbar.Add("SKU is required", Severity.Error);
+            return;
+        }
+
+        try
+        {
+            if (IsEdit)
+            {
+                await ContractItemService.UpdateAsync(ContractItem.Id, null, ContractItem);
+                Snackbar.Add("Contract item updated successfully", Severity.Success);
+            }
+            else
+            {
+                await ContractItemService.CreateAsync(null, ContractItem);
+                Snackbar.Add("Contract item created successfully", Severity.Success);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving contract item: {ex.Message}", Severity.Error);
+        }
+    }
+}
