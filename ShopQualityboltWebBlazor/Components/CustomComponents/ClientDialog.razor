@@ -1,0 +1,102 @@
+@using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Services.Http
+@inject IApiService<Client, ClientEditViewModel> ClientService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="form" @bind-IsValid="@isValid">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="model.Name" 
+                                  Label="Client Name" 
+                                  Required="true"
+                                  RequiredError="Client name is required"
+                                  Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="model.LegacyId" 
+                                  Label="Legacy ID" 
+                                  Required="true"
+                                  RequiredError="Legacy ID is required"
+                                  Variant="Variant.Outlined"
+                                  HelperText="Unique identifier from legacy system" />
+                </MudItem>
+            </MudGrid>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" 
+                   Variant="Variant.Filled" 
+                   OnClick="Submit" 
+                   Disabled="@(!isValid || saving)">
+            @if (saving)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+            }
+            @(IsEdit ? "Update" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public ClientEditViewModel Client { get; set; } = new();
+
+    [Parameter]
+    public bool IsEdit { get; set; }
+
+    private MudForm form;
+    private bool isValid;
+    private bool saving;
+    private ClientEditViewModel model = new();
+
+    protected override void OnInitialized()
+    {
+        model = new ClientEditViewModel
+        {
+            Id = Client.Id,
+            Name = Client.Name ?? string.Empty,
+            LegacyId = Client.LegacyId ?? string.Empty
+        };
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private async Task Submit()
+    {
+        if (!isValid) return;
+
+        saving = true;
+        try
+        {
+            if (IsEdit)
+            {
+                await ClientService.UpdateAsync(model.Id, null, model);
+                Snackbar.Add($"Client '{model.Name}' updated successfully", Severity.Success);
+            }
+            else
+            {
+                await ClientService.CreateAsync(null, model);
+                Snackbar.Add($"Client '{model.Name}' created successfully", Severity.Success);
+            }
+
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error saving client: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+}

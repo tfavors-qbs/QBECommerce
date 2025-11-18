@@ -76,8 +76,9 @@ namespace QBExternalWebLibrary.Services.Http
         public async Task<IEnumerable<TModel>> GetAllAsync()
         {
             var response = await _httpClient.GetAsync(_endpoint).ConfigureAwait(false);
-            if (!response.IsSuccessStatusCode) return default;
-            return await response.Content.ReadFromJsonAsync<List<TModel>>().ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode) return Enumerable.Empty<TModel>();
+            var result = await response.Content.ReadFromJsonAsync<List<TModel>>().ConfigureAwait(false);
+            return result ?? Enumerable.Empty<TModel>();
         }
 
         /// <summary>
@@ -89,7 +90,8 @@ namespace QBExternalWebLibrary.Services.Http
         {
             var response = await _httpClient.GetAsync($"{_endpoint}/{id}");
             if (!response.IsSuccessStatusCode) return default;
-            return await response.Content.ReadFromJsonAsync<TEntity>();
+            var result = await response.Content.ReadFromJsonAsync<TEntity>();
+            return result;
         }
 
         /// <summary>

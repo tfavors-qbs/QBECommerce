@@ -6,6 +6,7 @@
 @using QBExternalWebLibrary.Models.Products
 @using System.Net.Http.Json
 @using ShopQualityboltWebBlazor.Components.CustomComponents
+@using Microsoft.AspNetCore.WebUtilities
 @attribute [Authorize(Roles = "Admin")]
 @inject IApiService<ContractItem, ContractItemEditViewModel> ContractItemService
 @inject IApiService<Client, ClientEditViewModel> ClientService
@@ -20,7 +21,14 @@
 <PageTitle>Contract Items Management</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.ExtraExtraLarge" Class="mt-4">
-    <MudText Typo="Typo.h4" Class="mb-4">Contract Items Management</MudText>
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <MudText Typo="Typo.h4">Contract Items Management</MudText>
+        <MudButton Variant="Variant.Text" 
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="@(() => NavigationManager.NavigateTo("/admin/clients"))">
+            Back to Clients
+        </MudButton>
+    </MudStack>
 
     <MudPaper Class="pa-4 mb-4">
         <MudGrid>
@@ -128,6 +136,15 @@
         _httpClient = HttpClientFactory.CreateClient("Auth");
         await LoadClients();
         await LoadReferenceData();
+        
+        // Check for clientId query parameter
+        var uri = new Uri(NavigationManager.Uri);
+        var queryParams = QueryHelpers.ParseQuery(uri.Query);
+        if (queryParams.TryGetValue("clientId", out var clientIdString) && int.TryParse(clientIdString, out var clientId))
+        {
+            selectedClientId = clientId;
+            await LoadContractItems();
+        }
     }
 
     private async Task LoadClients()

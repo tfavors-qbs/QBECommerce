@@ -18,6 +18,30 @@ using QBExternalWebLibrary.Models.Ariba;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add CORS services
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowBlazorApp", policy =>
+    {
+        // Get allowed origins from configuration
+        var allowedOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>() 
+            ?? new[] { "https://localhost:44318", "http://localhost:5000" }; // Default for development
+        
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials(); // Important for authentication
+    });
+    
+    // Separate policy for development (more permissive)
+    options.AddPolicy("DevelopmentCors", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 // Add services to the container - API only
 builder.Services.AddControllers();
 
@@ -180,6 +204,16 @@ app.MapIdentityApi<ApplicationUser>();
 app.UseHttpsRedirection();
 app.UseSession();
 app.UseStaticFiles();
+
+// Enable CORS (MUST be before UseRouting/UseAuthentication/UseAuthorization)
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("DevelopmentCors");
+}
+else
+{
+    app.UseCors("AllowBlazorApp");
+}
 
 app.MapGet("/roles", (ClaimsPrincipal user) => {
     if (user.Identity is not null && user.Identity.IsAuthenticated) {

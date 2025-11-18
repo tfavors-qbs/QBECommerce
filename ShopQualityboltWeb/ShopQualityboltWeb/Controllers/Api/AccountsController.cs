@@ -165,20 +165,30 @@ namespace ShopQualityboltWeb.Controllers.Api {
                 return Unauthorized(new { message = "User is not authenticated." });
 
             var user = await _userManager.FindByIdAsync(userId);
-            var clientName = user.ClientId == null ? null : _clientService.GetById(user.ClientId).Name;
-            var roles = await _userManager.GetRolesAsync(user);
-
+            
             if (user == null)
                 return NotFound(new { message = "User not found." });
 
+            // Safely get client name
+            string clientName = null;
+            if (user.ClientId != null && user.ClientId > 0)
+            {
+                var client = _clientService.GetById(user.ClientId);
+                clientName = client?.Name;
+            }
+
+            // Safely get roles
+            var roles = await _userManager.GetRolesAsync(user);
+            var rolesList = roles?.ToList() ?? new List<string>();
+
             UserInfo userInfo = new() {
-                Email = user.Email,
-                GivenName = user.GivenName,
-                FamilyName = user.FamilyName,
+                Email = user.Email ?? string.Empty,
+                GivenName = user.GivenName ?? string.Empty,
+                FamilyName = user.FamilyName ?? string.Empty,
                 ClientId = user.ClientId,
                 IsEmailConfirmed = user.EmailConfirmed,
                 ClientName = clientName,
-                Roles = roles.ToList()
+                Roles = rolesList
             };
 
             return Ok(userInfo);

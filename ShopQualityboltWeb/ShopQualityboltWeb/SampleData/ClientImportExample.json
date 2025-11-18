@@ -1,0 +1,140 @@
+{
+  "client": {
+    "legacyId": "CLIENT001",
+    "name": "Acme Corporation"
+  },
+  "contractItems": [
+    {
+      "customerStkNo": "ACME-BOLT-001",
+      "description": "Hex Head Bolt 1/4-20 x 1.5\" Zinc Plated",
+      "price": 0.35,
+      "nonStock": false,
+      "sku": {
+        "name": "HEX-1/4-20-1.5-ZN",
+        "diameter": {
+          "name": "1/4",
+          "displayName": "1/4\"",
+          "value": 0.25
+        },
+        "length": {
+          "name": "1.5",
+          "displayName": "1.5\"",
+          "value": 1.5
+        },
+        "productID": {
+          "legacyId": 12345,
+          "legacyName": "HEX-BOLT-STD",
+          "description": "Standard Hex Head Bolt",
+          "group": {
+            "legacyId": "GRP001",
+            "name": "BOLTS",
+            "displayName": "Bolts",
+            "description": "Standard bolts",
+            "class": {
+              "legacyId": "CLS001",
+              "name": "FASTENERS",
+              "displayName": "Fasteners",
+              "description": "All fastener products"
+            }
+          },
+          "shape": {
+            "name": "HEX",
+            "displayName": "Hexagon",
+            "description": "Hexagonal head"
+          },
+          "material": {
+            "name": "STEEL",
+            "displayName": "Steel",
+            "description": "Carbon steel"
+          },
+          "coating": {
+            "name": "ZINC",
+            "displayName": "Zinc Plated",
+            "description": "Zinc electroplating"
+          },
+          "thread": {
+            "name": "UNC",
+            "displayName": "UNC (Unified Coarse)",
+            "description": "Unified National Coarse thread"
+          },
+          "spec": {
+            "name": "GRADE5",
+            "displayName": "Grade 5",
+            "description": "SAE J429 Grade 5"
+          }
+        }
+      },
+      "diameter": {
+        "name": "1/4",
+        "displayName": "1/4\"",
+        "value": 0.25
+      },
+      "length": {
+        "name": "1.5",
+        "displayName": "1.5\"",
+        "value": 1.5
+      }
+    },
+    {
+      "customerStkNo": "ACME-NUT-001",
+      "description": "Hex Nut 1/4-20 Zinc Plated",
+      "price": 0.15,
+      "nonStock": false,
+      "sku": {
+        "name": "HEXNUT-1/4-20-ZN",
+        "diameter": {
+          "name": "1/4",
+          "displayName": "1/4\"",
+          "value": 0.25
+        },
+        "productID": {
+          "legacyId": 12346,
+          "legacyName": "HEX-NUT-STD",
+          "description": "Standard Hex Nut",
+          "group": {
+            "legacyId": "GRP002",
+            "name": "NUTS",
+            "displayName": "Nuts",
+            "description": "Standard nuts",
+            "class": {
+              "legacyId": "CLS001",
+              "name": "FASTENERS",
+              "displayName": "Fasteners",
+              "description": "All fastener products"
+            }
+          },
+          "shape": {
+            "name": "HEX",
+            "displayName": "Hexagon",
+            "description": "Hexagonal"
+          },
+          "material": {
+            "name": "STEEL",
+            "displayName": "Steel",
+            "description": "Carbon steel"
+          },
+          "coating": {
+            "name": "ZINC",
+            "displayName": "Zinc Plated",
+            "description": "Zinc electroplating"
+          },
+          "thread": {
+            "name": "UNC",
+            "displayName": "UNC (Unified Coarse)",
+            "description": "Unified National Coarse thread"
+          },
+          "spec": {
+            "name": "GRADE5",
+            "displayName": "Grade 5",
+            "description": "SAE J429 Grade 5"
+          }
+        }
+      },
+      "diameter": {
+        "name": "1/4",
+        "displayName": "1/4\"",
+        "value": 0.25
+      }
+    }
+  ]
+}

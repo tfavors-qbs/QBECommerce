@@ -1,0 +1,283 @@
+@using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Models.Products
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+            <MudText Align="Align.Center">Loading client information...</MudText>
+        }
+        else if (clientStats != null)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-4">
+                <strong>Warning:</strong> This action cannot be undone!
+            </MudAlert>
+
+            <MudText Typo="Typo.body1" Class="mb-3">
+                You are about to delete the following client:
+            </MudText>
+
+            <MudPaper Class="pa-3 mb-4" Elevation="2">
+                <MudStack Spacing="2">
+                    <MudStack Row="true" Spacing="2">
+                        <MudIcon Icon="@Icons.Material.Filled.Business" Color="Color.Primary" />
+                        <MudText Typo="Typo.h6">@Client.Name?.Trim()</MudText>
+                    </MudStack>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        Legacy ID: @Client.LegacyId
+                    </MudText>
+                </MudStack>
+            </MudPaper>
+
+            <MudText Typo="Typo.h6" Class="mb-2">Impact Assessment:</MudText>
+            
+            <MudList T="string" Dense="true">
+                <MudListItem T="string" Icon="@Icons.Material.Filled.Inventory" IconColor="Color.Error">
+                    <MudText>
+                        <strong>@clientStats.ContractItemsCount</strong> contract items will be <strong>permanently deleted</strong>
+                    </MudText>
+                </MudListItem>
+                <MudListItem T="string" Icon="@Icons.Material.Filled.People" IconColor="Color.Warning">
+                    <MudText>
+                        <strong>@clientStats.UsersCount</strong> user(s) will be <strong>disassociated</strong> (accounts remain active)
+                    </MudText>
+                </MudListItem>
+            </MudList>
+
+            @if (clientStats.ContractItemsCount > 0 || clientStats.UsersCount > 0)
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-4 mb-4">
+                    <strong>What happens:</strong>
+                    <ul class="my-2">
+                        <li>All contract items (customer stock) for this client will be deleted</li>
+                        <li>User accounts will remain but will no longer be linked to this client</li>
+                        <li>Users can be reassigned to a different client later</li>
+                    </ul>
+                </MudAlert>
+            }
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.body1" Class="mb-2">
+                To confirm deletion, type the client name: <strong>@Client.Name?.Trim()</strong>
+            </MudText>
+
+            <MudTextField @bind-Value="confirmationText" 
+                          Label="Client Name" 
+                          Variant="Variant.Outlined"
+                          Immediate="true"
+                          HelperText="Type the exact client name to enable deletion"
+                          Error="@(!string.IsNullOrEmpty(confirmationText) && confirmationText?.Trim() != Client.Name?.Trim())"
+                          ErrorText="Client name does not match" />
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Error">
+                Failed to load client information. Please try again.
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Disabled="@deleting">Cancel</MudButton>
+        <MudButton Color="Color.Error" 
+                   Variant="Variant.Filled" 
+                   OnClick="DeleteClient" 
+                   Disabled="@(!CanDelete || deleting)">
+            @if (deleting)
+            {
+                <MudProgressCircular Class="mr-2" Size="Size.Small" Indeterminate="true" />
+                <span>Deleting...</span>
+            }
+            else
+            {
+                <MudIcon Icon="@Icons.Material.Filled.Delete" Class="mr-2" />
+                <span>Delete Client</span>
+            }
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public ClientEditViewModel Client { get; set; }
+
+    private HttpClient _httpClient;
+    private bool loading = true;
+    private bool deleting = false;
+    private string confirmationText = "";
+    private ClientStats clientStats;
+
+    private bool CanDelete => 
+        !loading && 
+        !deleting && 
+        clientStats != null && 
+        confirmationText?.Trim() == Client.Name?.Trim();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("Auth");
+        await LoadClientStats();
+    }
+
+    private async Task LoadClientStats()
+    {
+        loading = true;
+        try
+        {
+            // Get contract items count
+            int contractItemsCount = 0;
+            try
+            {
+                var contractItemsResponse = await _httpClient.GetAsync($"api/contractitems/admin/client/{Client.Id}");
+                if (contractItemsResponse.IsSuccessStatusCode)
+                {
+                    var contractItemsJson = await contractItemsResponse.Content.ReadAsStringAsync();
+                    var items = await contractItemsResponse.Content.ReadFromJsonAsync<List<ContractItemEditViewModel>>();
+                    contractItemsCount = items?.Count ?? 0;
+                }
+                else
+                {
+                    var error = await contractItemsResponse.Content.ReadAsStringAsync();
+                    Snackbar.Add($"Contract items endpoint returned {contractItemsResponse.StatusCode}: {error}", Severity.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error loading contract items: {ex.Message}", Severity.Warning);
+            }
+
+            // Get users count
+            int usersCount = 0;
+            try
+            {
+                var usersResponse = await _httpClient.GetAsync($"api/users");
+                if (usersResponse.IsSuccessStatusCode)
+                {
+                    var users = await usersResponse.Content.ReadFromJsonAsync<List<UserViewModel>>();
+                    usersCount = users?.Count(u => u.ClientId == Client.Id) ?? 0;
+                }
+                else
+                {
+                    var error = await usersResponse.Content.ReadAsStringAsync();
+                    Snackbar.Add($"Users endpoint returned {usersResponse.StatusCode}: {error}", Severity.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error loading users: {ex.Message}", Severity.Warning);
+            }
+
+            clientStats = new ClientStats
+            {
+                ContractItemsCount = contractItemsCount,
+                UsersCount = usersCount
+            };
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading client statistics: {ex.Message}", Severity.Error);
+            clientStats = new ClientStats(); // Initialize with zeros
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private async Task DeleteClient()
+    {
+        if (!CanDelete) return;
+
+        deleting = true;
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"api/clients/{Client.Id}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ClientDeletionResponse>();
+                
+                Snackbar.Add(
+                    $"Client '{Client.Name?.Trim()}' deleted successfully. " +
+                    $"Deleted {result.DeletedContractItemsCount} contract items, " +
+                    $"disassociated {result.DisassociatedUsersCount} users.",
+                    Severity.Success,
+                    config => config.VisibleStateDuration = 5000
+                );
+
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Failed to delete client: {errorContent}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error deleting client: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            deleting = false;
+        }
+    }
+
+    private class ClientStats
+    {
+        public int ContractItemsCount { get; set; }
+        public int UsersCount { get; set; }
+    }
+
+    public class ClientDeletionResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; }
+        public int ClientId { get; set; }
+        public string ClientName { get; set; }
+        public int DeletedContractItemsCount { get; set; }
+        public int DisassociatedUsersCount { get; set; }
+    }
+
+    public class UserViewModel
+    {
+        public string Id { get; set; }
+        public string Email { get; set; }
+        public string GivenName { get; set; }
+        public string FamilyName { get; set; }
+        public int? ClientId { get; set; }
+        public string ClientName { get; set; }
+        public string AribaId { get; set; }
+        public bool IsDisabled { get; set; }
+        public List<string> Roles { get; set; } = new();
+    }
+
+    public class ContractItemEditViewModel
+    {
+        public int Id { get; set; }
+        public string CustomerStkNo { get; set; }
+        public string Description { get; set; }
+        public decimal Price { get; set; }
+        public int ClientId { get; set; }
+        public string ClientName { get; set; }
+        public int? SKUId { get; set; }
+        public string SKUName { get; set; }
+        public int? DiameterId { get; set; }
+        public string DiameterName { get; set; }
+        public int? LengthId { get; set; }
+        public string LengthName { get; set; }
+        public bool NonStock { get; set; }
+    }
+}
