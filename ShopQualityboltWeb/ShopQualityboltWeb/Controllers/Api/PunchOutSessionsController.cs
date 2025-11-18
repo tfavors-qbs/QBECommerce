@@ -146,6 +146,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 					version = "1.2.014",
 					payloadID = $"{DateTime.UtcNow.Ticks}@yourdomain.com",
 					timestamp = DateTime.UtcNow.ToString("o"),
+					lang = "en-US",
 					Items = new object[]
 					{
 						new Response
@@ -164,10 +165,44 @@ namespace ShopQualityboltWeb.Controllers.Api
 
 				string responseString;
 				var responseSerializer = new XmlSerializer(typeof(cXML));
-				using (var writer = new StringWriter())
+				
+				// Create XmlWriterSettings to control the output
+				var settings = new System.Xml.XmlWriterSettings
 				{
-					responseSerializer.Serialize(writer, response);
-					responseString = writer.ToString();
+					Encoding = new UTF8Encoding(false), // UTF-8 without BOM
+					Indent = false,
+					OmitXmlDeclaration = false
+				};
+				
+				// Create empty namespaces to remove xsi and xsd namespace declarations
+				var namespaces = new XmlSerializerNamespaces();
+				namespaces.Add("", ""); // Add empty namespace
+				
+				using (var memoryStream = new MemoryStream())
+				{
+					using (var xmlWriter = System.Xml.XmlWriter.Create(memoryStream, settings))
+					{
+						responseSerializer.Serialize(xmlWriter, response, namespaces);
+					}
+					memoryStream.Position = 0;
+					using (var reader = new StreamReader(memoryStream, Encoding.UTF8))
+					{
+						responseString = reader.ReadToEnd();
+					}
+				}
+
+				// Ensure version attribute is present (XmlSerializer may omit it due to DefaultValueAttribute)
+				if (!responseString.Contains("version=\""))
+				{
+					responseString = responseString.Replace("<cXML ", "<cXML version=\"1.2.014\" ");
+				}
+
+				// Add DOCTYPE declaration after XML declaration
+				const string xmlDeclaration = "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
+				const string docType = "<!DOCTYPE cXML SYSTEM \"http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd\">";
+				if (responseString.StartsWith(xmlDeclaration))
+				{
+					responseString = xmlDeclaration + docType + responseString.Substring(xmlDeclaration.Length);
 				}
 
 				if(responseString == null)
@@ -246,7 +281,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 					return StatusCode(500, CreateErrorResponse("500", $"Internal server error: failed to create a punch out session for request"));
 				}
 
-				return Content(responseString, "text/xml");
+				return Content(responseString, "text/xml; charset=utf-8");
 			}
 			catch (Exception ex)
 			{
@@ -261,6 +296,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 					version = "1.2.014",
 					payloadID = $"{DateTime.UtcNow.Ticks}@yourdomain.com",
 					timestamp = DateTime.UtcNow.ToString("o"),
+					lang = "en-US",
 					Items = new object[]
 					{
 						new Response
@@ -271,11 +307,48 @@ namespace ShopQualityboltWeb.Controllers.Api
 				};
 
 				var serializer = new XmlSerializer(typeof(cXML));
-				using (var writer = new StringWriter())
+				
+				// Create XmlWriterSettings to control the output
+				var settings = new System.Xml.XmlWriterSettings
 				{
-					serializer.Serialize(writer, errorResponse);
-					return writer.ToString();
+					Encoding = new UTF8Encoding(false), // UTF-8 without BOM
+					Indent = false,
+					OmitXmlDeclaration = false
+				};
+				
+				// Create empty namespaces to remove xsi and xsd namespace declarations
+				var namespaces = new XmlSerializerNamespaces();
+				namespaces.Add("", ""); // Add empty namespace
+				
+				string errorString;
+				using (var memoryStream = new MemoryStream())
+				{
+					using (var xmlWriter = System.Xml.XmlWriter.Create(memoryStream, settings))
+					{
+						serializer.Serialize(xmlWriter, errorResponse, namespaces);
+					}
+					memoryStream.Position = 0;
+					using (var reader = new StreamReader(memoryStream, Encoding.UTF8))
+					{
+						errorString = reader.ReadToEnd();
+					}
 				}
+				
+				// Ensure version attribute is present (XmlSerializer may omit it due to DefaultValueAttribute)
+				if (!errorString.Contains("version=\""))
+				{
+					errorString = errorString.Replace("<cXML ", "<cXML version=\"1.2.014\" ");
+				}
+				
+				// Add DOCTYPE declaration after XML declaration
+				const string xmlDeclaration = "<?xml version=\"1.0\" encoding=\"utf-8\"?>";
+				const string docType = "<!DOCTYPE cXML SYSTEM \"http://xml.cxml.org/schemas/cXML/1.2.014/cXML.dtd\">";
+				if (errorString.StartsWith(xmlDeclaration))
+				{
+					errorString = xmlDeclaration + docType + errorString.Substring(xmlDeclaration.Length);
+				}
+				
+				return errorString;
 			}
 		}
 
