@@ -11,12 +11,74 @@
 	
     <link rel="icon" type="image/png" href="favicon.ico" />
     <HeadOutlet />
+    
+    <style>
+        .blazor-reconnect-modal {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 9999;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .blazor-reconnect-modal > div {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        
+        .blazor-reconnect-modal h5 {
+            margin: 0 0 1rem 0;
+            color: #333;
+        }
+        
+        .blazor-reconnect-modal p {
+            margin: 0;
+            color: #666;
+        }
+    </style>
 </head>
 
 <body>
     <Routes @rendermode=RenderMode.InteractiveServer/>
-    <script src="_framework/blazor.web.js"></script>
+    
+    <div id="blazor-error-ui" style="display: none; position: fixed; top: 0; left: 0; right: 0; background: #dc3545; color: white; padding: 1rem; z-index: 10000; text-align: center;">
+        An error has occurred. This application may no longer respond until reloaded.
+        <a href="" style="color: white; text-decoration: underline; margin-left: 1rem;">Reload</a>
+        <a style="color: white; text-decoration: underline; margin-left: 1rem; cursor: pointer;" onclick="document.getElementById('blazor-error-ui').style.display='none'">Dismiss</a>
+    </div>
+
+    <script src="_framework/blazor.web.js" autostart="false"></script>
 	<script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    
+    <script>
+        Blazor.start({
+            reconnectionOptions: {
+                maxRetries: 8,
+                retryIntervalMilliseconds: 2000
+            },
+            circuit: {
+                reconnectionHandler: {
+                    onConnectionDown: () => {
+                        console.warn('Blazor connection lost. Attempting to reconnect...');
+                    },
+                    onConnectionUp: () => {
+                        console.log('Blazor connection restored.');
+                    }
+                }
+            }
+        }).catch(err => {
+            console.error('Failed to start Blazor:', err);
+            document.getElementById('blazor-error-ui').style.display = 'block';
+        });
+    </script>
 </body>
 
 </html>

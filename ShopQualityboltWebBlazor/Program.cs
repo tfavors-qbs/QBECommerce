@@ -13,6 +13,7 @@ using ShopQualityboltWebBlazor.Services;
 using QBExternalWebLibrary.Models.Catalog;
 using QBExternalWebLibrary.Models.Ariba;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Components.Server.Circuits;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,8 +25,44 @@ string apiAddress = builder.Configuration["ApiSettings:BaseAddress"]
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Configure Circuit Options for Blazor Server
+builder.Services.AddServerSideBlazor(options =>
+{
+    // Increase the disconnect timeout (default is 3 minutes)
+    options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
+    
+    // Increase the maximum disconnect timeout (how long to keep circuit alive)
+    options.DisconnectedCircuitMaxRetained = 100;
+    
+    // Enable detailed errors in development
+    options.DetailedErrors = builder.Environment.IsDevelopment();
+    
+    // JS interop timeout
+    options.JSInteropDefaultCallTimeout = TimeSpan.FromMinutes(1);
+});
+
+// Configure SignalR Hub options
+builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
+{
+    // Increase message size limits if needed
+    options.MaximumReceiveMessageSize = 128 * 1024; // 128 KB (default is 32KB)
+    
+    // Keep alive interval - how often server pings client
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    
+    // Client timeout - how long to wait for client response before considering it disconnected
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+    
+    // Enable detailed errors in development
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
+
 builder.Services.AddMudServices();
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiAddress) });
+
+// Register Circuit Handler for better connection management
+builder.Services.AddScoped<CircuitHandler, CircuitHandlerService>();
+
 builder.Services.AddScoped<IApiService<SKU, SKUEditViewModel>, ApiService<SKU, SKUEditViewModel>>();
 builder.Services.AddScoped<IApiService<Length, Length>, ApiService<Length, Length>>();
 builder.Services.AddScoped<IApiService<Diameter, Diameter>, ApiService<Diameter, Diameter>>();
@@ -43,9 +80,9 @@ builder.Services.AddScoped<PunchOutSessionApiService>();
 builder.Services.AddScoped<IUserApiService, UserApiService>();
 builder.Services.AddScoped<LocalStorageService>();
 builder.Services.AddTransient<CookieHandler>();
-builder.Services.AddSingleton<ShoppingCartPageApiService>();//TODO: Really not sure i want this one to be a singleton, but i need it to be to be able to use it from ShoppingCartManagementService
-builder.Services.AddSingleton<ShoppingCartManagementService>();
-builder.Services.AddSingleton<PunchOutManagementService>();
+builder.Services.AddScoped<ShoppingCartPageApiService>(); // Changed from Singleton
+builder.Services.AddScoped<ShoppingCartManagementService>(); // Changed from Singleton
+builder.Services.AddScoped<PunchOutManagementService>(); // Changed from Singleton
 //builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IAuthenticationApiService, IdentityApiService>();
 
