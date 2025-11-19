@@ -59,6 +59,33 @@
 	<script src="_content/MudBlazor/MudBlazor.min.js"></script>
     
     <script>
+        // PunchOut form submission function
+        window.submitPunchOutOrder = function(postUrl, cxmlMessage) {
+            console.log('[PunchOut] Creating form to submit order back to Ariba...');
+            console.log('[PunchOut] POST URL:', postUrl);
+            console.log('[PunchOut] cXML length:', cxmlMessage.length);
+            
+            // Create a hidden form
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = postUrl;
+            form.style.display = 'none';
+            
+            // Create hidden input for cXML-urlencoded parameter
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'cXML-urlencoded';
+            input.value = cxmlMessage;
+            
+            form.appendChild(input);
+            document.body.appendChild(form);
+            
+            console.log('[PunchOut] Submitting form...');
+            
+            // Submit the form - this will redirect the browser back to Ariba
+            form.submit();
+        };
+        
         Blazor.start({
             reconnectionOptions: {
                 maxRetries: 8,

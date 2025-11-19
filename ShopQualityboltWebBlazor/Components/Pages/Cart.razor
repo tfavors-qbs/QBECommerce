@@ -7,6 +7,8 @@
 @using QBExternalWebLibrary.Services.Authentication
 @using QBExternalWebLibrary.Services.Http
 @using ShopQualityboltWebBlazor.Services
+@using ShopQualityboltWebBlazor.Components.CustomComponents
+@using Microsoft.JSInterop
 @inject IDialogService DialogService
 @inject IAccountManagement Acct
 @inject ShoppingCartManagementService ShoppingCartManagementService
@@ -16,6 +18,7 @@
 @inject IApiService<ShoppingCart, ShoppingCartEVM> shoppingCartApiService
 @inject ShoppingCartItemApiService shoppingCartItemApiService;
 @inject HttpClient httpClient;
+@inject IJSRuntime JSRuntime
 @implements IDisposable
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
@@ -174,77 +177,302 @@
         isLoading = true;
         StateHasChanged();
 
-        PunchOutSession session = punchOutManagementService.CurrentPunchOutSession;
-        if(session == null)
+        // Detailed error tracking
+        var debugInfo = new List<string>();
+        
+        try
         {
-            await DialogService.ShowMessageBox("Error", "No current punch out session recognized");
-            isLoading = false;
-            StateHasChanged();
-            return;
-        }
-
-        ShoppingCartPageEVM usersCartPage = await shoppingCartPageApiService.GetPageAsync();
-        if(usersCartPage == null)
-        {
-            await DialogService.ShowMessageBox("Error", "Failed to find user's shopping cart page, please refresh the page and try again");
-            isLoading = false;
-            StateHasChanged();
-            return;
-        }
-
-        ShoppingCartEVM usersCart = usersCartPage.ShoppingCartEVM;
-        var usersCartItems = await shoppingCartItemApiService.GetShoppingCartItemsForShoppingCart(usersCart.Id);
-        if (usersCart == null || usersCartItems == null)
-        {
-            await DialogService.ShowMessageBox("Error", "Failed to find user's shopping cart or items, please refresh the page and try again");
-            isLoading = false;
-            StateHasChanged();
-            return;
-        }
-
-        if (usersCartItems.Count() != ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Count)
-        {
-            await DialogService.ShowMessageBox("Error", "The user's shopping cart has changed, please refresh the page and recheck your cart");
-            isLoading = false;
-            StateHasChanged();
-            return;
-        }
-
-        int i = 0;
-        foreach (ShoppingCartItem item in usersCartItems)
-        {
-            ShoppingCartItemEVM localItem = ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.ElementAt(i).Value;
-            if(item.Id != localItem.Id || item.Quantity != localItem.Quantity)
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Starting checkout process");
+            
+            // Step 1: Get PunchOut session
+            PunchOutSession session = punchOutManagementService.CurrentPunchOutSession;
+            if(session == null)
             {
-                await DialogService.ShowMessageBox("Error", "The user's shopping cart has changed, please refresh the page and recheck your cart");
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] ERROR: No PunchOut session found");
+                await ShowDebugError("No PunchOut Session", 
+                    "No current punch out session recognized", 
+                    debugInfo);
                 isLoading = false;
                 StateHasChanged();
                 return;
             }
-            i++;
-        }
+            
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] PunchOut Session Found:");
+            debugInfo.Add($"  - SessionId: {session.SessionId}");
+            debugInfo.Add($"  - PostUrl: {session.PostUrl}");
+            debugInfo.Add($"  - BuyerCookie: {session.BuyerCookie}");
+            debugInfo.Add($"  - Expires: {session.ExpirationDateTime}");
 
-        string orderMessage = ShoppingCart.GeneratePunchOutOrderMessage(usersCartItems, session);
-        if (string.IsNullOrEmpty(orderMessage))
+            // Step 2: Get user's cart
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Fetching user's cart page...");
+            ShoppingCartPageEVM usersCartPage = await shoppingCartPageApiService.GetPageAsync();
+            if(usersCartPage == null)
+            {
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] ERROR: Failed to fetch cart page");
+                await ShowDebugError("Cart Not Found", 
+                    "Failed to find user's shopping cart page, please refresh the page and try again", 
+                    debugInfo);
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+            
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Cart page retrieved successfully");
+            debugInfo.Add($"  - Cart Id: {usersCartPage.ShoppingCartEVM?.Id}");
+            debugInfo.Add($"  - Items Count: {usersCartPage.ShoppingCartItemEVMs?.Count ?? 0}");
+
+            // Step 3: Get cart items from API
+            ShoppingCartEVM usersCart = usersCartPage.ShoppingCartEVM;
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Fetching cart items from API...");
+            var usersCartItems = await shoppingCartItemApiService.GetShoppingCartItemsForShoppingCart(usersCart.Id);
+            
+            if (usersCart == null || usersCartItems == null)
+            {
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] ERROR: Cart or items are null");
+                debugInfo.Add($"  - Cart is null: {usersCart == null}");
+                debugInfo.Add($"  - Items is null: {usersCartItems == null}");
+                await ShowDebugError("Cart Items Not Found", 
+                    "Failed to find user's shopping cart or items, please refresh the page and try again", 
+                    debugInfo);
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+            
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Cart items retrieved: {usersCartItems.Count()} items");
+
+            // Log cart items details for debugging
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Cart items details:");
+            foreach (var item in usersCartItems)
+            {
+                debugInfo.Add($"  - Item #{item.Id}: {item.ContractItem.SKU.Name}");
+                debugInfo.Add($"    Description: {item.ContractItem.Description}");
+                debugInfo.Add($"    Quantity: {item.Quantity}");
+                debugInfo.Add($"    Price: ${item.ContractItem.Price}");
+                debugInfo.Add($"    Total: ${item.Quantity * item.ContractItem.Price}");
+            }
+
+            // Step 4: Validate cart hasn't changed
+            if (usersCartItems.Count() != ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Count)
+            {
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] ERROR: Cart count mismatch");
+                debugInfo.Add($"  - API count: {usersCartItems.Count()}");
+                debugInfo.Add($"  - Local count: {ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.Count}");
+                await ShowDebugError("Cart Changed", 
+                    "The user's shopping cart has changed, please refresh the page and recheck your cart", 
+                    debugInfo);
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Step 5: Validate item details
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Validating cart items...");
+            int i = 0;
+            foreach (ShoppingCartItem item in usersCartItems)
+            {
+                ShoppingCartItemEVM localItem = ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs.ElementAt(i).Value;
+                if(item.Id != localItem.Id || item.Quantity != localItem.Quantity)
+                {
+                    debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] ERROR: Item mismatch at index {i}");
+                    debugInfo.Add($"  - API Item Id: {item.Id}, Qty: {item.Quantity}");
+                    debugInfo.Add($"  - Local Item Id: {localItem.Id}, Qty: {localItem.Quantity}");
+                    await ShowDebugError("Cart Items Changed", 
+                        "The user's shopping cart has changed, please refresh the page and recheck your cart", 
+                        debugInfo);
+                    isLoading = false;
+                    StateHasChanged();
+                    return;
+                }
+                i++;
+            }
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] All items validated successfully");
+
+            // Step 6: Generate cXML order message
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Generating cXML order message...");
+            string orderMessage = ShoppingCart.GeneratePunchOutOrderMessage(usersCartItems, session);
+            
+            if (string.IsNullOrEmpty(orderMessage))
+            {
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] ERROR: Order message generation failed");
+                await ShowDebugError("Order Generation Failed", 
+                    "Failed to generate punch out order message, please try again or contact support", 
+                    debugInfo);
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+            
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Order message generated");
+            debugInfo.Add($"  - Message length: {orderMessage.Length} characters");
+            debugInfo.Add($"  - First 200 chars: {orderMessage.Substring(0, Math.Min(200, orderMessage.Length))}");
+            
+            // Log the FULL cXML message to console for inspection
+            await JSRuntime.InvokeVoidAsync("console.group", "📄 FULL cXML ORDER MESSAGE");
+            await JSRuntime.InvokeVoidAsync("console.log", orderMessage);
+            await JSRuntime.InvokeVoidAsync("console.groupEnd");
+
+            // Step 7: POST to Ariba
+            string postUrl = session.PostUrl;
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Posting order to Ariba...");
+            debugInfo.Add($"  - POST URL: {postUrl}");
+            
+            try
+            {
+                // Create proper XML content with Content-Length header
+                var xmlContent = new StringContent(orderMessage, System.Text.Encoding.UTF8, "application/xml");
+                
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Sending XML content:");
+                debugInfo.Add($"  - Content-Type: application/xml");
+                debugInfo.Add($"  - Content-Length: {orderMessage.Length}");
+                debugInfo.Add($"  - Encoding: UTF-8");
+                
+                var result = await httpClient.PostAsync(postUrl, xmlContent);
+                
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] POST completed");
+                debugInfo.Add($"  - Status Code: {(int)result.StatusCode} ({result.StatusCode})");
+                debugInfo.Add($"  - Success: {result.IsSuccessStatusCode}");
+                
+                // Get response content for debugging
+                var responseContent = await result.Content.ReadAsStringAsync();
+                debugInfo.Add($"  - Response Length: {responseContent?.Length ?? 0} characters");
+                if (!string.IsNullOrEmpty(responseContent))
+                {
+                    debugInfo.Add($"  - Response (first 500 chars): {responseContent.Substring(0, Math.Min(500, responseContent.Length))}");
+                }
+                
+                if (!result.IsSuccessStatusCode)
+                {
+                    debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] ERROR: POST failed with status {result.StatusCode}");
+                    
+                    // Show detailed error with full debug info
+                    await ShowDebugError("PunchOut POST Failed", 
+                        $"Failed to send punch out order. Status: {(int)result.StatusCode} ({result.StatusCode})", 
+                        debugInfo,
+                        responseContent);
+                    
+                    isLoading = false;
+                    StateHasChanged();
+                    return;
+                }
+                
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Checkout completed successfully!");
+                
+                // Show success message - Ariba will close the iframe automatically
+                await DialogService.ShowMessageBox(
+                    "Checkout Successful", 
+                    "Your order has been sent to Ariba successfully! This window will close automatically.", 
+                    yesText: "OK",
+                    options: new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+            }
+            catch (HttpRequestException httpEx)
+            {
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] HTTP REQUEST ERROR: {httpEx.Message}");
+                debugInfo.Add($"  - Inner Exception: {httpEx.InnerException?.Message}");
+                await ShowDebugError("Network Error", 
+                    $"HTTP request failed: {httpEx.Message}", 
+                    debugInfo);
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+            catch (Exception postEx)
+            {
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] POST ERROR: {postEx.Message}");
+                debugInfo.Add($"  - Type: {postEx.GetType().Name}");
+                debugInfo.Add($"  - Stack: {postEx.StackTrace}");
+                await ShowDebugError("POST Error", 
+                    $"Error posting to Ariba: {postEx.Message}", 
+                    debugInfo);
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+        }
+        catch (Exception ex)
         {
-            await DialogService.ShowMessageBox("Error", "Failed to generate punch out order message, please try again or contact support");
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] UNEXPECTED ERROR: {ex.Message}");
+            debugInfo.Add($"  - Type: {ex.GetType().Name}");
+            debugInfo.Add($"  - Stack: {ex.StackTrace}");
+            await ShowDebugError("Unexpected Error", 
+                $"An unexpected error occurred: {ex.Message}", 
+                debugInfo);
+        }
+        finally
+        {
             isLoading = false;
             StateHasChanged();
-            return;
         }
-
-        string postUrl = session.PostUrl;
-
-        var result = await httpClient.PostAsJsonAsync(postUrl, orderMessage);
-        if (!result.IsSuccessStatusCode)
+    }
+    
+    private async Task ShowDebugError(string title, string message, List<string> debugInfo, string? responseContent = null)
+    {
+        var debugText = string.Join("\n", debugInfo);
+        
+        // Log to browser console (visible in DevTools even in iframe)
+        await JSRuntime.InvokeVoidAsync("console.error", $"[PunchOut Checkout Error] {title}");
+        await JSRuntime.InvokeVoidAsync("console.error", message);
+        await JSRuntime.InvokeVoidAsync("console.group", "Debug Information");
+        foreach (var line in debugInfo)
         {
-            await DialogService.ShowMessageBox("Error", "Failed to send punch out order to browser form post, please try again or contact support");
-            isLoading = false;
-            StateHasChanged();
-            return;
+            await JSRuntime.InvokeVoidAsync("console.log", line);
         }
-
-        isLoading = false;
-        StateHasChanged();
+        if (!string.IsNullOrEmpty(responseContent))
+        {
+            await JSRuntime.InvokeVoidAsync("console.log", $"Response Content: {responseContent}");
+        }
+        await JSRuntime.InvokeVoidAsync("console.groupEnd");
+        
+        // Send error log to server for persistence (production debugging)
+        try
+        {
+            var session = punchOutManagementService.CurrentPunchOutSession;
+            var errorLog = new
+            {
+                SessionId = session?.SessionId ?? "Unknown",
+                PostUrl = session?.PostUrl ?? "Unknown",
+                ErrorMessage = $"{title}: {message}",
+                StatusCode = ExtractStatusCodeFromDebugInfo(debugInfo),
+                DebugSteps = debugInfo,
+                ResponseContent = responseContent,
+                CartItemCount = ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Count ?? 0,
+                TotalAmount = totalPrice
+            };
+            
+            // Fire and forget - don't block UI if logging fails
+            _ = httpClient.PostAsJsonAsync("api/debuglog/checkout-error", errorLog);
+        }
+        catch
+        {
+            // Silently fail - logging errors shouldn't break the UI
+        }
+        
+        // Build message with toggle for debug info
+        var parameters = new DialogParameters
+        {
+            { "Title", title },
+            { "Message", message },
+            { "DebugInfo", debugText },
+            { "ResponseContent", responseContent }
+        };
+        
+        var dialog = await DialogService.ShowAsync<ShopQualityboltWebBlazor.Components.CustomComponents.CheckoutErrorDialog>(
+            "Checkout Error", 
+            parameters, 
+            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+    }
+    
+    private int? ExtractStatusCodeFromDebugInfo(List<string> debugInfo)
+    {
+        var statusLine = debugInfo.FirstOrDefault(line => line.Contains("Status Code:"));
+        if (statusLine != null)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(statusLine, @"Status Code: (\d+)");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int code))
+            {
+                return code;
+            }
+        }
+        return null;
     }
 }
