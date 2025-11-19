@@ -59,19 +59,26 @@
 	<script src="_content/MudBlazor/MudBlazor.min.js"></script>
     
     <script>
-        // PunchOut form submission function
-        window.submitPunchOutOrder = function(postUrl, cxmlMessage) {
-            console.log('[PunchOut] Creating form to submit order back to Ariba...');
-            console.log('[PunchOut] POST URL:', postUrl);
+        // PunchOut form submission per Ariba protocol
+        // The cXML PunchOutOrderMessage must be submitted via HTML form
+        // in a field called "cXML-urlencoded"
+        window.submitPunchOutForm = function(postUrl, cxmlMessage) {
+            console.log('[PunchOut] Submitting cXML via HTML form (Ariba protocol)');
+            
+            // Decode HTML entities in URL (&amp; → &)
+            // This can happen if the URL was stored in XML
+            var decodedUrl = postUrl.replace(/&amp;/g, '&');
+            
+            console.log('[PunchOut] POST URL:', decodedUrl);
             console.log('[PunchOut] cXML length:', cxmlMessage.length);
             
             // Create a hidden form
             var form = document.createElement('form');
             form.method = 'POST';
-            form.action = postUrl;
+            form.action = decodedUrl;
             form.style.display = 'none';
             
-            // Create hidden input for cXML-urlencoded parameter
+            // Add cXML in form field named "cXML-urlencoded" (Ariba requirement)
             var input = document.createElement('input');
             input.type = 'hidden';
             input.name = 'cXML-urlencoded';
@@ -81,8 +88,9 @@
             document.body.appendChild(form);
             
             console.log('[PunchOut] Submitting form...');
+            console.log('[PunchOut] This will trigger Ariba to close iframe and add items to cart');
             
-            // Submit the form - this will redirect the browser back to Ariba
+            // Submit the form - Ariba will handle the iframe closure
             form.submit();
         };
         

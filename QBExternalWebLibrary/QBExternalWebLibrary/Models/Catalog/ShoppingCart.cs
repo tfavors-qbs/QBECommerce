@@ -86,16 +86,17 @@ namespace QBExternalWebLibrary.Models.Catalog
 							Money = new Money()
 							{
 								currency = "USD",
-								Value = shoppingCartItems.Sum(a => a.Quantity * a.ContractItem.Price).ToString()
+								Value = shoppingCartItems.Sum(a => a.Quantity * a.ContractItem.Price).ToString("F2")
 							}
 						}
 					},
 					ItemIn =
 					shoppingCartItems.Select(
-						a =>
+						(a, index) =>
 						new ItemIn()
 						{
 							quantity = a.Quantity.ToString(),
+							lineNumber = (index + 1).ToString(),
 							ItemID = new ItemID()
 							{
 								SupplierPartID = a.ContractItem.SKU.Name,
@@ -111,7 +112,7 @@ namespace QBExternalWebLibrary.Models.Catalog
 									Money = new Money()
 									{
 										currency = "USD",
-										Value = (a.Quantity * a.ContractItem.Price).ToString()
+										Value = a.ContractItem.Price.ToString("F2")
 									}
 								},
 								Description =
@@ -147,6 +148,20 @@ namespace QBExternalWebLibrary.Models.Catalog
 				using (var reader = new StreamReader(buffer))
 				{
 					string xmlString = reader.ReadToEnd();
+					
+					// Fix Description structure: Remove <ShortName> wrapper and keep just the text
+					// Ariba expects: <Description xml:lang="en">Text</Description>
+					// Not: <Description xml:lang="en"><ShortName>Text</ShortName></Description>
+					xmlString = System.Text.RegularExpressions.Regex.Replace(
+						xmlString,
+						@"<Description xml:lang=""([^""]+)"">\s*<ShortName>([^<]+)</ShortName>\s*</Description>",
+						@"<Description xml:lang=""$1"">$2</Description>"
+					);
+					
+					// Decode HTML entities in the XML (&amp; should stay as & in content, not in URLs)
+					// This is important because XmlSerializer encodes & as &amp; everywhere
+					// but we need actual & in the text content
+					
 					return xmlString;
 				}
 			}

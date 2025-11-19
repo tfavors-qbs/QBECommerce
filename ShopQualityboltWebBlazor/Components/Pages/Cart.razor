@@ -358,12 +358,13 @@
                 
                 debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Checkout completed successfully!");
                 
-                // Show success message - Ariba will close the iframe automatically
-                await DialogService.ShowMessageBox(
-                    "Checkout Successful", 
-                    "Your order has been sent to Ariba successfully! This window will close automatically.", 
-                    yesText: "OK",
-                    options: new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+                // Submit cXML via HTML form - this is how PunchOut protocol works
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Submitting HTML form with cXML to Ariba...");
+                await JSRuntime.InvokeVoidAsync("console.log", "[PunchOut] Creating HTML form for cXML submission");
+                await JSRuntime.InvokeVoidAsync("submitPunchOutForm", postUrl, orderMessage);
+                
+                // Note: The form submission will cause the iframe to navigate/close
+                // Ariba handles the rest from here
             }
             catch (HttpRequestException httpEx)
             {
