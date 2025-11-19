@@ -78,7 +78,7 @@ namespace ShopQualityboltWeb.Controllers.Api
                             CartId = cart.Id,
                             UserId = user.Id,
                             UserEmail = user.Email ?? "",
-                            UserName = $"{user.GivenName} {user.FamilyName}",
+                            UserName = $"{user.GivenName ?? ""} {user.FamilyName ?? ""}".Trim(),
                             ClientId = user.ClientId,
                             ClientName = user.Client?.Name ?? "",
                             ItemCount = cartItems.Count,
@@ -156,7 +156,7 @@ namespace ShopQualityboltWeb.Controllers.Api
                             CartId = cart.Id,
                             UserId = user.Id,
                             UserEmail = user.Email,
-                            UserName = $"{user.GivenName} {user.FamilyName}",
+                            UserName = $"{user.GivenName ?? ""} {user.FamilyName ?? ""}".Trim(),
                             ClientId = user.ClientId,
                             ClientName = user.Client?.Name,
                             ItemCount = cartItems.Count,
@@ -390,7 +390,7 @@ namespace ShopQualityboltWeb.Controllers.Api
                     {
                         UserId = user.Id,
                         UserEmail = user.Email,
-                        UserName = $"{user.GivenName} {user.FamilyName}",
+                        UserName = $"{user.GivenName ?? ""} {user.FamilyName ?? ""}".Trim(),
                         HasCart = cart != null,
                         CartId = cart?.Id
                     });

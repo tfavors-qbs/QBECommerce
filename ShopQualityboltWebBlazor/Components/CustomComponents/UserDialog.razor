@@ -25,21 +25,15 @@
                 </MudItem>
                 <MudItem xs="12" md="6">
                     <MudTextField @bind-Value="model.GivenName" 
-                                  Label="Given Name" 
-                                  Required="true" 
-                                  RequiredError="Given name is required" />
+                                  Label="Given Name" />
                 </MudItem>
                 <MudItem xs="12" md="6">
                     <MudTextField @bind-Value="model.FamilyName" 
-                                  Label="Family Name" 
-                                  Required="true" 
-                                  RequiredError="Family name is required" />
+                                  Label="Family Name" />
                 </MudItem>
                 <MudItem xs="12" md="6">
                     <MudTextField @bind-Value="model.AribaId" 
-                                  Label="Ariba ID" 
-                                  Required="true" 
-                                  RequiredError="Ariba ID is required" />
+                                  Label="Ariba ID" />
                 </MudItem>
                 <MudItem xs="12" md="6">
                     <MudSelect @bind-Value="model.ClientId" 
@@ -112,9 +106,9 @@
             model = new UserFormModel
             {
                 Email = User.Email ?? string.Empty,
-                GivenName = User.GivenName ?? string.Empty,
-                FamilyName = User.FamilyName ?? string.Empty,
-                AribaId = User.AribaId ?? string.Empty,
+                GivenName = User.GivenName,
+                FamilyName = User.FamilyName,
+                AribaId = User.AribaId,
                 ClientId = User.ClientId,
                 IsDisabled = User.IsDisabled
             };
@@ -211,9 +205,9 @@
     {
         public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
-        public string GivenName { get; set; } = string.Empty;
-        public string FamilyName { get; set; } = string.Empty;
-        public string AribaId { get; set; } = string.Empty;
+        public string? GivenName { get; set; }
+        public string? FamilyName { get; set; }
+        public string? AribaId { get; set; }
         public int? ClientId { get; set; }
         public bool IsDisabled { get; set; }
     }

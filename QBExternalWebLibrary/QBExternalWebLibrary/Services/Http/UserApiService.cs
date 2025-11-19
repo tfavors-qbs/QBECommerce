@@ -68,9 +68,9 @@ namespace QBExternalWebLibrary.Services.Http
     {
         public string Id { get; set; }
         public string Email { get; set; }
-        public string GivenName { get; set; }
-        public string FamilyName { get; set; }
-        public string AribaId { get; set; }
+        public string? GivenName { get; set; }
+        public string? FamilyName { get; set; }
+        public string? AribaId { get; set; }
         public int? ClientId { get; set; }
         public string? ClientName { get; set; }
         public bool IsDisabled { get; set; }
@@ -82,9 +82,9 @@ namespace QBExternalWebLibrary.Services.Http
     {
         public string Email { get; set; }
         public string Password { get; set; }
-        public string GivenName { get; set; }
-        public string FamilyName { get; set; }
-        public string AribaId { get; set; }
+        public string? GivenName { get; set; }
+        public string? FamilyName { get; set; }
+        public string? AribaId { get; set; }
         public int? ClientId { get; set; }
         public List<string> Roles { get; set; } = new List<string>();
     }
@@ -93,9 +93,9 @@ namespace QBExternalWebLibrary.Services.Http
     {
         public string Email { get; set; }
         public string? Password { get; set; }
-        public string GivenName { get; set; }
-        public string FamilyName { get; set; }
-        public string AribaId { get; set; }
+        public string? GivenName { get; set; }
+        public string? FamilyName { get; set; }
+        public string? AribaId { get; set; }
         public int? ClientId { get; set; }
         public bool IsDisabled { get; set; }
         public List<string> Roles { get; set; } = new List<string>();

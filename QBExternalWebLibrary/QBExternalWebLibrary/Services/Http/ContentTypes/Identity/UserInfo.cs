@@ -17,12 +17,12 @@ namespace QBExternalWebLibrary.Services.Http.ContentTypes.Identity {
         /// <summary>
         /// Given name.
         /// </summary>
-        public string GivenName { get; set;} = string.Empty;
+        public string? GivenName { get; set;}
 
         /// <summary>
         /// Family name.
         /// </summary>
-        public string FamilyName { get;set;} = string.Empty;
+        public string? FamilyName { get;set;}
 
         /// <summary>
         /// Client Id.
