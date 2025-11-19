@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using QBExternalWebLibrary.Data;
 using QBExternalWebLibrary.Models;
 using System.Text.Json;
+using ShopQualityboltWeb.Services;
+using System.Security.Claims;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -14,12 +16,14 @@ namespace ShopQualityboltWeb.Controllers.Api
 		private readonly DataContext _context;
 		private readonly ILogger<ErrorLogsController> _logger;
 		private readonly IConfiguration _configuration;
+		private readonly IErrorLogService _errorLogService;
 
-		public ErrorLogsController(DataContext context, ILogger<ErrorLogsController> logger, IConfiguration configuration)
+		public ErrorLogsController(DataContext context, ILogger<ErrorLogsController> logger, IConfiguration configuration, IErrorLogService errorLogService)
 		{
 			_context = context;
 			_logger = logger;
 			_configuration = configuration;
+			_errorLogService = errorLogService;
 		}
 
 		/// <summary>
@@ -150,6 +154,15 @@ namespace ShopQualityboltWeb.Controllers.Api
 			}
 			catch (Exception ex)
 			{
+				await _errorLogService.LogErrorAsync(
+					"Error Log System Error",
+					"Failed to Retrieve Error Logs",
+					ex.Message,
+					ex,
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
 				_logger.LogError(ex, "Failed to retrieve error logs");
 				return StatusCode(500, "Failed to retrieve error logs");
 			}
@@ -198,6 +211,16 @@ namespace ShopQualityboltWeb.Controllers.Api
 			}
 			catch (Exception ex)
 			{
+				await _errorLogService.LogErrorAsync(
+					"Error Log System Error",
+					"Failed to Retrieve Error Log",
+					ex.Message,
+					ex,
+					additionalData: new { errorLogId = id },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
 				_logger.LogError(ex, "Failed to retrieve error log {ErrorId}", id);
 				return StatusCode(500, "Failed to retrieve error log");
 			}
@@ -229,6 +252,16 @@ namespace ShopQualityboltWeb.Controllers.Api
 			}
 			catch (Exception ex)
 			{
+				await _errorLogService.LogErrorAsync(
+					"Error Log System Error",
+					"Failed to Resolve Error Log",
+					ex.Message,
+					ex,
+					additionalData: new { errorLogId = id },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
 				_logger.LogError(ex, "Failed to resolve error {ErrorId}", id);
 				return StatusCode(500, "Failed to resolve error");
 			}
@@ -257,6 +290,16 @@ namespace ShopQualityboltWeb.Controllers.Api
 			}
 			catch (Exception ex)
 			{
+				await _errorLogService.LogErrorAsync(
+					"Error Log System Error",
+					"Failed to Delete Error Log",
+					ex.Message,
+					ex,
+					additionalData: new { errorLogId = id },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
 				_logger.LogError(ex, "Failed to delete error {ErrorId}", id);
 				return StatusCode(500, "Failed to delete error");
 			}
@@ -302,6 +345,16 @@ namespace ShopQualityboltWeb.Controllers.Api
 			}
 			catch (Exception ex)
 			{
+				await _errorLogService.LogErrorAsync(
+					"Error Log System Error",
+					"Failed to Retrieve Error Statistics",
+					ex.Message,
+					ex,
+					additionalData: new { days },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
 				_logger.LogError(ex, "Failed to retrieve error stats");
 				return StatusCode(500, "Failed to retrieve error stats");
 			}

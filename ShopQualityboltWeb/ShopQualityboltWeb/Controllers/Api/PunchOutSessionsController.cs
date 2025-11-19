@@ -22,6 +22,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using System.Collections.Frozen;
 using QBExternalWebLibrary.Models.Catalog;
 using System.Collections.Generic;
+using ShopQualityboltWeb.Services;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -29,29 +30,40 @@ namespace ShopQualityboltWeb.Controllers.Api
 	[ApiController]
 	public class PunchOutSessionsController : ControllerBase
 	{
-		private readonly IConfiguration _configuration; // Added for configuration
+		private readonly IConfiguration _configuration;
 		private readonly IModelService<PunchOutSession, PunchOutSession> _service;
 		private readonly IModelService<QBExternalWebLibrary.Models.ContractItem, ContractItemEditViewModel> _contractItemService;
 		private readonly UserManager<ApplicationUser> _userManager;
 		private readonly IModelService<ShoppingCart, ShoppingCartEVM> _shoppingCartService;
+		private readonly IErrorLogService _errorLogService;
+		private readonly ILogger<PunchOutSessionsController> _logger;
 
-		public PunchOutSessionsController(IConfiguration configuration, IModelService<PunchOutSession, PunchOutSession> service, UserManager<ApplicationUser> userManager, IModelService<QBExternalWebLibrary.Models.ContractItem, ContractItemEditViewModel> contractItemService, IModelService<ShoppingCart, ShoppingCartEVM> shoppingCartService)
+		public PunchOutSessionsController(
+			IConfiguration configuration, 
+			IModelService<PunchOutSession, PunchOutSession> service, 
+			UserManager<ApplicationUser> userManager, 
+			IModelService<QBExternalWebLibrary.Models.ContractItem, ContractItemEditViewModel> contractItemService, 
+			IModelService<ShoppingCart, ShoppingCartEVM> shoppingCartService,
+			IErrorLogService errorLogService,
+			ILogger<PunchOutSessionsController> logger)
 		{
 			_configuration = configuration;
 			_service = service;
 			_userManager = userManager;
 			_contractItemService = contractItemService;
 			_shoppingCartService = shoppingCartService;
+			_errorLogService = errorLogService;
+			_logger = logger;
 		}
 
 		[HttpPost("request-punch-out")]
 		[AllowAnonymous]
 		public async Task<ActionResult> Register()
 		{
+			string cxmlString = null;
 			try
 			{
 				// Read raw cXML from request body
-				string cxmlString;
 				using (var reader = new StreamReader(Request.Body, Encoding.UTF8))
 				{
 					cxmlString = await reader.ReadToEndAsync();
@@ -85,12 +97,28 @@ namespace ShopQualityboltWeb.Controllers.Api
 				// Validate request
 				if (request == null || request.Item is not PunchOutSetupRequest punchOutSetupRequest)
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Invalid PunchOutSetupRequest",
+						"Missing or invalid PunchOutSetupRequest in cXML",
+						additionalData: new { cxmlContent = cxmlString?.Substring(0, Math.Min(500, cxmlString?.Length ?? 0)) },
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 400);
 					return BadRequest(CreateErrorResponse("400", "Invalid or missing PunchOutSetupRequest"));
 				}
 
 				var from = header?.From?.FirstOrDefault(c => c.domain == "DUNS" || c.domain == "NetworkID")?.Identity?.Any?.FirstOrDefault()?.Value ?? "";
 				if (string.IsNullOrEmpty(from))
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Invalid Header Identity",
+						"Missing or invalid From identity in header",
+						additionalData: new { header = header },
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 400);
 					return BadRequest(CreateErrorResponse("400", "Invalid header or From identity"));
 				}
 
@@ -98,6 +126,14 @@ namespace ShopQualityboltWeb.Controllers.Api
 				// Validate credentials (e.g., SharedSecret)
 				if (header == null || credential?.Item is not SharedSecret sharedSecret)
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Invalid Credentials",
+						"Missing or invalid shared secret credential",
+						additionalData: new { hasHeader = header != null, hasCredential = credential != null },
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 400);
 					return BadRequest(CreateErrorResponse("400", "Invalid header or shared secret credential"));
 				}
 
@@ -105,6 +141,13 @@ namespace ShopQualityboltWeb.Controllers.Api
 
 				if (header == null || string.IsNullOrEmpty(aribaId))
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Invalid Ariba Credential",
+						"Missing or invalid Ariba ID",
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 400);
 					return BadRequest(CreateErrorResponse("400", "Invalid ariba credential"));
 				}
 
@@ -114,11 +157,26 @@ namespace ShopQualityboltWeb.Controllers.Api
 				
 				if (string.IsNullOrEmpty(sharedSecretValue) || string.IsNullOrEmpty(expectedSharedSecret))
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Missing Shared Secret",
+						"Shared secret not provided or not configured",
+						additionalData: new { hasProvidedSecret = !string.IsNullOrEmpty(sharedSecretValue), hasConfiguredSecret = !string.IsNullOrEmpty(expectedSharedSecret) },
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 401);
 					return Unauthorized(CreateErrorResponse("401", "Invalid credentials"));
 				}
 				
 				if (sharedSecretValue != expectedSharedSecret)
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Invalid Shared Secret",
+						"Provided shared secret does not match expected value",
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 401);
 					return Unauthorized(CreateErrorResponse("401", "Invalid credentials"));
 				}
 
@@ -132,6 +190,13 @@ namespace ShopQualityboltWeb.Controllers.Api
 
 				if(email == null)
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Missing Email",
+						"User email not found in PunchOut request",
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 400);
 					return BadRequest(CreateErrorResponse("400", "Invalid email"));
 				}
 
@@ -207,17 +272,43 @@ namespace ShopQualityboltWeb.Controllers.Api
 
 				if(responseString == null)
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Failed to Serialize Response",
+						"Failed to serialize cXML response",
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 500);
 					return StatusCode(500, CreateErrorResponse("500", $"Internal server error: failed to serialize cXML response"));
 				}
 
 				var user = await _userManager.FindByEmailAsync(email);
 				if(user == null)
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"User Not Found",
+						$"No user found for email: {email}",
+						additionalData: new { email },
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						userEmail: email,
+						statusCode: 400);
 					return BadRequest(CreateErrorResponse("400", "No user could be found for the given email"));
 				}
 
 				if(user.AribaId != aribaId)
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Ariba ID Mismatch",
+						$"Ariba ID {aribaId} does not match user's Ariba ID",
+						additionalData: new { providedAribaId = aribaId, userAribaId = user.AribaId, email },
+						userId: user.Id,
+						userEmail: user.Email,
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 401);
 					return Unauthorized(CreateErrorResponse("401", "The ariba id given could not be associated with the email account given"));
 				}
 
@@ -227,6 +318,16 @@ namespace ShopQualityboltWeb.Controllers.Api
 					var usersShoppingCart = _shoppingCartService.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
 					if(usersShoppingCart == null)
 					{
+						await _errorLogService.LogErrorAsync(
+							"PunchOut Setup Error",
+							"Shopping Cart Not Found",
+							"Could not find user's shopping cart for edit operation",
+							additionalData: new { operation = punchOutSetupRequest.operation.ToString(), userId = user.Id },
+							userId: user.Id,
+							userEmail: user.Email,
+							requestUrl: HttpContext.Request.Path,
+							httpMethod: HttpContext.Request.Method,
+							statusCode: 401);
 						return Unauthorized(CreateErrorResponse("401", "Could not find user's shopping cart to edit"));
 					}
 
@@ -278,14 +379,37 @@ namespace ShopQualityboltWeb.Controllers.Api
 
 				if(punchOutResult == null)
 				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Failed to Create Session",
+						"Failed to create punch out session in database",
+						additionalData: new { sessionId = newSessionId, userId = user.Id },
+						userId: user.Id,
+						userEmail: user.Email,
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						sessionId: newSessionId,
+						statusCode: 500);
 					return StatusCode(500, CreateErrorResponse("500", $"Internal server error: failed to create a punch out session for request"));
 				}
+
+				_logger.LogInformation("Successfully created PunchOut session {SessionId} for user {Email}", newSessionId, user.Email);
 
 				return Content(responseString, "text/xml; charset=utf-8");
 			}
 			catch (Exception ex)
 			{
-				// Log exception (use your logging framework)
+				await _errorLogService.LogErrorAsync(
+					"PunchOut Setup Error",
+					"Unexpected Error in PunchOut Setup",
+					ex.Message,
+					ex,
+					additionalData: new { cxmlPreview = cxmlString?.Substring(0, Math.Min(500, cxmlString?.Length ?? 0)) },
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method,
+					statusCode: 500);
+
+				_logger.LogError(ex, "Unexpected error in PunchOut setup");
 				return StatusCode(500, CreateErrorResponse("500", $"Internal server error: {ex.Message}"));
 			}
 
@@ -356,35 +480,84 @@ namespace ShopQualityboltWeb.Controllers.Api
 		[Authorize(Roles = "Admin")]
 		public async Task<ActionResult<IEnumerable<PunchOutSession>>> GetSessions()
 		{
-			return _service.GetAll().ToList();
+			try
+			{
+				return _service.GetAll().ToList();
+			}
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"API Error",
+					"Failed to Get PunchOut Sessions",
+					ex.Message,
+					ex,
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
+				return StatusCode(500, "Failed to retrieve sessions");
+			}
 		}
 
 		[HttpGet("{id}")]
 		[Authorize(Roles = "Admin")]
 		public async Task<ActionResult<PunchOutSession>> GetSession(int id)
 		{
-			var session = _service.GetById(id);
-
-			if (session == null)
+			try
 			{
-				return NotFound();
-			}
+				var session = _service.GetById(id);
 
-			return session;
+				if (session == null)
+				{
+					return NotFound();
+				}
+
+				return session;
+			}
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"API Error",
+					"Failed to Get PunchOut Session",
+					ex.Message,
+					ex,
+					additionalData: new { sessionId = id },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
+				return StatusCode(500, "Failed to retrieve session");
+			}
 		}
 
 		[HttpGet("sessionid/{sessionId}")]
 		[AllowAnonymous]
 		public async Task<ActionResult<PunchOutSession>> GetSessionBySessionId(string sessionId)
 		{
-			var session = _service.Find(a => a.SessionId == sessionId).FirstOrDefault();
-
-			if (session == null)
+			try
 			{
-				return NotFound();
-			}
+				var session = _service.Find(a => a.SessionId == sessionId).FirstOrDefault();
 
-			return session;
+				if (session == null)
+				{
+					return NotFound();
+				}
+
+				return session;
+			}
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"API Error",
+					"Failed to Get PunchOut Session by SessionId",
+					ex.Message,
+					ex,
+					additionalData: new { sessionId },
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method,
+					sessionId: sessionId);
+				return StatusCode(500, "Failed to retrieve session");
+			}
 		}
 
 		[HttpPut("{id}")]
@@ -401,7 +574,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 			{
 				updatedSession = _service.Update(session);
 			}
-			catch (DbUpdateConcurrencyException)
+			catch (DbUpdateConcurrencyException ex)
 			{
 				if (_service.GetById(id) == null)
 				{
@@ -409,8 +582,32 @@ namespace ShopQualityboltWeb.Controllers.Api
 				}
 				else
 				{
+					await _errorLogService.LogErrorAsync(
+						"API Error",
+						"Concurrency Error Updating PunchOut Session",
+						ex.Message,
+						ex,
+						additionalData: new { sessionId = id },
+						userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+						userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method);
 					throw;
 				}
+			}
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"API Error",
+					"Failed to Update PunchOut Session",
+					ex.Message,
+					ex,
+					additionalData: new { sessionId = id },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
+				return StatusCode(500, "Failed to update session");
 			}
 
 			return Ok(updatedSession);
@@ -420,29 +617,64 @@ namespace ShopQualityboltWeb.Controllers.Api
 		[Authorize(Roles = "Admin")]
 		public async Task<ActionResult<PunchOutSession>> PostSession(PunchOutSession session)
 		{
-			if (_service.GetAll().Any(c => c.SessionId == session.SessionId))
+			try
 			{
-				return Conflict("Session with that session id already exists.");
+				if (_service.GetAll().Any(c => c.SessionId == session.SessionId))
+				{
+					return Conflict("Session with that session id already exists.");
+				}
+
+				var newSession = _service.Create(session);
+
+				return CreatedAtAction(nameof(GetSession), new { id = newSession.Id }, newSession);
 			}
-
-			var newSession = _service.Create(session);
-
-			return CreatedAtAction(nameof(GetSession), new { id = newSession.Id }, newSession);
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"API Error",
+					"Failed to Create PunchOut Session",
+					ex.Message,
+					ex,
+					additionalData: new { sessionId = session.SessionId },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method,
+					sessionId: session.SessionId);
+				return StatusCode(500, "Failed to create session");
+			}
 		}
 
 		[HttpDelete("{id}")]
 		[Authorize(Roles = "Admin")]
 		public async Task<IActionResult> DeleteSession(int id)
 		{
-			var session = _service.GetById(id);
-			if (session == null)
+			try
 			{
-				return NotFound();
+				var session = _service.GetById(id);
+				if (session == null)
+				{
+					return NotFound();
+				}
+
+				_service.Delete(session);
+
+				return NoContent();
 			}
-
-			_service.Delete(session);
-
-			return NoContent();
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"API Error",
+					"Failed to Delete PunchOut Session",
+					ex.Message,
+					ex,
+					additionalData: new { sessionId = id },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
+				return StatusCode(500, "Failed to delete session");
+			}
 		}
 	}
 }

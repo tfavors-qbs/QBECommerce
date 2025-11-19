@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using QBExternalWebLibrary.Models.Catalog;
 using QBExternalWebLibrary.Models.Ariba;
+using ShopQualityboltWeb.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -176,6 +177,9 @@ builder.Services.AddScoped<IModelMapper<ShoppingCartItem, ShoppingCartItemEVM>, 
 builder.Services.AddScoped<IRepository<PunchOutSession>, EFRepository<PunchOutSession>>();
 builder.Services.AddScoped<IModelService<PunchOutSession, PunchOutSession?>, ModelService<PunchOutSession, PunchOutSession?>>();
 builder.Services.AddScoped<IModelMapper<PunchOutSession, PunchOutSession>, GenericMapper<PunchOutSession, PunchOutSession>>();
+
+// Register Error Log Service
+builder.Services.AddScoped<IErrorLogService, ErrorLogService>();
 
 var app = builder.Build();
 

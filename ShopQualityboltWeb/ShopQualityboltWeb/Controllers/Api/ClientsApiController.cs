@@ -6,6 +6,8 @@ using QBExternalWebLibrary.Services.Model;
 using Microsoft.AspNetCore.Authorization;
 using QBExternalWebLibrary.Data;
 using Microsoft.AspNetCore.Identity;
+using ShopQualityboltWeb.Services;
+using System.Security.Claims;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -16,65 +18,146 @@ namespace ShopQualityboltWeb.Controllers.Api
         private readonly DataContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<ClientsApiController> _logger;
+		private readonly IErrorLogService _errorLogService;
 
         public ClientsApiController(
             IModelService<Client, ClientEditViewModel> service, 
             DataContext context,
             UserManager<ApplicationUser> userManager,
-            ILogger<ClientsApiController> logger) 
+            ILogger<ClientsApiController> logger,
+			IErrorLogService errorLogService) 
         {
             _service = service;
             _context = context;
             _userManager = userManager;
             _logger = logger;
+			_errorLogService = errorLogService;
         }
 
         [HttpGet]
         [Authorize(Roles = "Admin,QBSales")]
         public async Task<ActionResult<IEnumerable<Client>>> GetClients() {
-            return _service.GetAll().ToList();
+			try
+			{
+				return _service.GetAll().ToList();
+			}
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"Client Management Error",
+					"Failed to Get Clients List",
+					ex.Message,
+					ex,
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
+				return StatusCode(500, new { message = "Failed to retrieve clients" });
+			}
         }
 
         [HttpGet("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Client>> GetClient(int id) {
-            var client = _service.GetById(id);
+			try
+			{
+				var client = _service.GetById(id);
 
-            if (client == null) {
-                return NotFound();
-            }
+				if (client == null) {
+					return NotFound();
+				}
 
-            return client;
+				return client;
+			}
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"Client Management Error",
+					"Failed to Get Client",
+					ex.Message,
+					ex,
+					additionalData: new { clientId = id },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
+				return StatusCode(500, new { message = "Failed to retrieve client" });
+			}
         }
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutClient(int id, ClientEditViewModel clientEVM) {
-            if (id != clientEVM.Id) {
-                return BadRequest();
-            }
-            try {
-                _service.Update(null, clientEVM);
-            } catch (DbUpdateConcurrencyException) {
-                if (!ClientExists(id)) {
-                    return NotFound();
-                } else {
-                    throw;
-                }
-            }
-
-            return NoContent();
+			try
+			{
+				if (id != clientEVM.Id) {
+					return BadRequest();
+				}
+				
+				_service.Update(null, clientEVM);
+				_logger.LogInformation("Updated client {ClientId}", id);
+				return NoContent();
+			} 
+			catch (DbUpdateConcurrencyException ex) {
+				if (!ClientExists(id)) {
+					return NotFound();
+				} else {
+					await _errorLogService.LogErrorAsync(
+						"Client Management Error",
+						"Concurrency Error Updating Client",
+						ex.Message,
+						ex,
+						additionalData: new { clientId = id },
+						userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+						userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method);
+					throw;
+				}
+			}
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"Client Management Error",
+					"Failed to Update Client",
+					ex.Message,
+					ex,
+					additionalData: new { clientId = id },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
+				return StatusCode(500, new { message = "Failed to update client" });
+			}
         }
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<Client>> PostClient(ClientEditViewModel clientEVM) {
-            if (_service.GetAll().Any(c => c.LegacyId == clientEVM.LegacyId)) {
-                return Conflict("A client already exists with the legacy id providied.");
-            }
-            var client = _service.Create(null, clientEVM);
+			try
+			{
+				if (_service.GetAll().Any(c => c.LegacyId == clientEVM.LegacyId)) {
+					return Conflict("A client already exists with the legacy id providied.");
+				}
+				var client = _service.Create(null, clientEVM);
+				_logger.LogInformation("Created client {ClientId} - {ClientName}", client.Id, client.Name);
 
-            return CreatedAtAction("GetClient", new { id = client.Id }, client);
+				return CreatedAtAction("GetClient", new { id = client.Id }, client);
+			}
+			catch (Exception ex)
+			{
+				await _errorLogService.LogErrorAsync(
+					"Client Management Error",
+					"Failed to Create Client",
+					ex.Message,
+					ex,
+					additionalData: new { legacyId = clientEVM?.LegacyId, name = clientEVM?.Name },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
+				return StatusCode(500, new { message = "Failed to create client" });
+			}
         }
 
         [HttpDelete("{id}")]
@@ -140,6 +223,17 @@ namespace ShopQualityboltWeb.Controllers.Api
                 await transaction.RollbackAsync();
                 _logger.LogError(ex, "Failed to delete client {ClientId}", id);
                 
+				await _errorLogService.LogErrorAsync(
+					"Client Management Error",
+					"Failed to Delete Client",
+					ex.Message,
+					ex,
+					additionalData: new { clientId = id, clientName = client.Name },
+					userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+					userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+					requestUrl: HttpContext.Request.Path,
+					httpMethod: HttpContext.Request.Method);
+
                 return StatusCode(500, new ClientDeletionResponse
                 {
                     Success = false,
