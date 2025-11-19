@@ -99,7 +99,11 @@ builder.Services.AddHttpClient(
     "Auth",
     opt => opt.BaseAddress = new Uri(builder.Configuration["BackendUrl"] ?? apiAddress))
     .AddHttpMessageHandler<CookieHandler>()
-    .AddHttpMessageHandler(sp => new QBExternalWebLibrary.Services.Authentication.JwtTokenHandler(getToken));
+    .AddHttpMessageHandler(sp => 
+    {
+        var logger = sp.GetService<ILogger<QBExternalWebLibrary.Services.Authentication.JwtTokenHandler>>();
+        return new QBExternalWebLibrary.Services.Authentication.JwtTokenHandler(getToken, logger);
+    });
 
 // Register the token setter so CookieAuthenticationStateProvider can use it
 builder.Services.AddSingleton<Action<string?>>(setToken);
@@ -118,6 +122,39 @@ builder.Services.AddScoped(sp => (IAccountManagement)sp.GetRequiredService<Authe
 builder.Services.AddCascadingAuthenticationState();
 
 var app = builder.Build();
+
+// Configure Content Security Policy to allow Ariba to frame this site
+// MUST be first middleware before HSTS to prevent conflicts
+app.Use(async (context, next) =>
+{
+    // This needs to run before the response is generated
+    context.Response.OnStarting(() =>
+    {
+        // Get Ariba domains from configuration
+        var aribaOrigins = builder.Configuration.GetSection("Ariba:AllowedFrameOrigins").Get<string[]>() 
+            ?? new[] 
+            { 
+                "https://*.ariba.com",
+                "https://*.sap.com",
+                "https://s1.ariba.com",
+                "https://service.ariba.com"
+            };
+        
+        // Build frame-ancestors directive
+        var frameAncestors = string.Join(" ", new[] { "'self'" }.Concat(aribaOrigins));
+        
+        // Remove any existing CSP and X-Frame-Options headers
+        context.Response.Headers.Remove("Content-Security-Policy");
+        context.Response.Headers.Remove("X-Frame-Options");
+        
+        // Set the CSP header to allow framing from Ariba
+        context.Response.Headers["Content-Security-Policy"] = $"frame-ancestors {frameAncestors}";
+        
+        return Task.CompletedTask;
+    });
+    
+    await next();
+});
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())

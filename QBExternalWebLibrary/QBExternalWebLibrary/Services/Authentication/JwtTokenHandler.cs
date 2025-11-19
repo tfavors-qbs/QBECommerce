@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using Microsoft.Extensions.Logging;
 
 namespace QBExternalWebLibrary.Services.Authentication
 {
@@ -9,10 +10,12 @@ namespace QBExternalWebLibrary.Services.Authentication
     public class JwtTokenHandler : DelegatingHandler
     {
         private readonly Func<string?> _getToken;
+        private readonly ILogger<JwtTokenHandler>? _logger;
 
-        public JwtTokenHandler(Func<string?> getToken)
+        public JwtTokenHandler(Func<string?> getToken, ILogger<JwtTokenHandler>? logger = null)
         {
             _getToken = getToken;
+            _logger = logger;
         }
 
         protected override async Task<HttpResponseMessage> SendAsync(
@@ -26,12 +29,8 @@ namespace QBExternalWebLibrary.Services.Authentication
             if (!string.IsNullOrEmpty(token))
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                Console.WriteLine($"[JwtTokenHandler] Added Authorization header to {request.Method} {request.RequestUri?.PathAndQuery}");
-                Console.WriteLine($"[JwtTokenHandler] Token: Bearer {token.Substring(0, Math.Min(30, token.Length))}...");
-            }
-            else
-            {
-                Console.WriteLine($"[JwtTokenHandler] No token available for {request.Method} {request.RequestUri?.PathAndQuery}");
+                _logger?.LogDebug("Added Authorization header to {Method} {Path}", 
+                    request.Method, request.RequestUri?.PathAndQuery);
             }
 
             // Continue with the request

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using System.Text;
 using QBExternalWebLibrary.Services.Http.ContentTypes.Identity;
 using System.Net.Http.Headers;
+using Microsoft.Extensions.Logging;
 
 namespace QBExternalWebLibrary.Services.Authentication {
     /// <summary>
@@ -35,6 +36,11 @@ namespace QBExternalWebLibrary.Services.Authentication {
         private readonly Action<string?> _setToken;
 
         /// <summary>
+        /// Logger for diagnostic output
+        /// </summary>
+        private readonly ILogger<CookieAuthenticationStateProvider> _logger;
+
+        /// <summary>
         /// Authentication state.
         /// </summary>
         private bool _authenticated = false;
@@ -51,14 +57,17 @@ namespace QBExternalWebLibrary.Services.Authentication {
         /// <param name="httpClientFactory">Factory to retrieve auth client.</param>
         /// <param name="getToken">Function to get current JWT token.</param>
         /// <param name="setToken">Action to set JWT token.</param>
+        /// <param name="logger">Logger for diagnostic output.</param>
         public CookieAuthenticationStateProvider(
             IHttpClientFactory httpClientFactory,
             Func<string?> getToken,
-            Action<string?> setToken)
+            Action<string?> setToken,
+            ILogger<CookieAuthenticationStateProvider> logger)
         {
             _httpClient = httpClientFactory.CreateClient("Auth");
             _getToken = getToken;
             _setToken = setToken;
+            _logger = logger;
         }
 
         /// <summary>
@@ -112,7 +121,7 @@ namespace QBExternalWebLibrary.Services.Authentication {
         public async Task<FormResult> LoginAsync(string email, string password) {
             try
             {
-                Console.WriteLine($"[JWT AUTH] Starting regular login for email: {email}");
+                _logger.LogInformation("Starting regular login for user: {Email}", email);
                 
                 var result = await _httpClient.PostAsJsonAsync(
                     "api/accounts/login", new {
@@ -120,12 +129,8 @@ namespace QBExternalWebLibrary.Services.Authentication {
                         password
                     });
 
-                Console.WriteLine($"[JWT AUTH] Regular login response status: {result.StatusCode}");
-
                 if (result.IsSuccessStatusCode) {
                     var responseContent = await result.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[JWT AUTH] Response: {responseContent.Substring(0, Math.Min(200, responseContent.Length))}");
-                    
                     var loginResponse = JsonSerializer.Deserialize<LoginResponse>(responseContent, jsonSerializerOptions);
                     
                     if (loginResponse != null && !string.IsNullOrEmpty(loginResponse.accessToken))
@@ -133,7 +138,7 @@ namespace QBExternalWebLibrary.Services.Authentication {
                         // Store the JWT token - JwtTokenHandler will pick it up automatically
                         _setToken(loginResponse.accessToken);
                         
-                        Console.WriteLine($"[JWT AUTH] Token stored successfully for {email}. Length: {loginResponse.accessToken.Length}");
+                        _logger.LogInformation("Token stored successfully for {Email}", email);
                         
                         // Refresh auth state
                         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
@@ -142,13 +147,12 @@ namespace QBExternalWebLibrary.Services.Authentication {
                     }
                     else
                     {
-                        Console.WriteLine($"[JWT AUTH] Login response or token was null/empty");
+                        _logger.LogWarning("Login response or token was null/empty for {Email}", email);
                     }
                 }
                 else
                 {
-                    var errorContent = await result.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[JWT AUTH] Regular login failed: {result.StatusCode} - {errorContent}");
+                    _logger.LogWarning("Regular login failed for {Email}: {StatusCode}", email, result.StatusCode);
                 }
 
                 return new FormResult {
@@ -158,7 +162,7 @@ namespace QBExternalWebLibrary.Services.Authentication {
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[JWT AUTH] Regular login exception: {ex.Message}");
+                _logger.LogError(ex, "Regular login exception for {Email}", email);
                 return new FormResult {
                     Succeeded = false,
                     ErrorList = [$"Login error: {ex.Message}"]
@@ -173,17 +177,13 @@ namespace QBExternalWebLibrary.Services.Authentication {
         {
             try
             {
-                Console.WriteLine($"[JWT AUTH] Starting Ariba login with sessionId: {sessionId}");
+                _logger.LogInformation("Starting Ariba login with sessionId: {SessionId}", sessionId);
                 
                 var result = await _httpClient.PostAsJsonAsync("api/accounts/login/ariba", sessionId);
-
-                Console.WriteLine($"[JWT AUTH] Login response status: {result.StatusCode}");
 
                 if (result.IsSuccessStatusCode)
                 {
                     var responseContent = await result.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[JWT AUTH] Response: {responseContent.Substring(0, Math.Min(200, responseContent.Length))}");
-                    
                     var loginResponse = JsonSerializer.Deserialize<LoginResponse>(responseContent, jsonSerializerOptions);
                     
                     if (loginResponse != null && !string.IsNullOrEmpty(loginResponse.accessToken))
@@ -191,8 +191,7 @@ namespace QBExternalWebLibrary.Services.Authentication {
                         // Store the JWT token - JwtTokenHandler will pick it up automatically
                         _setToken(loginResponse.accessToken);
                         
-                        Console.WriteLine($"[JWT AUTH] Token stored successfully. Length: {loginResponse.accessToken.Length}");
-                        Console.WriteLine($"[JWT AUTH] Token verification: {(_getToken() != null ? "SUCCESS" : "FAILED")}");
+                        _logger.LogInformation("Ariba token stored successfully for session {SessionId}", sessionId);
                         
                         // Refresh auth state
                         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
@@ -201,13 +200,12 @@ namespace QBExternalWebLibrary.Services.Authentication {
                     }
                     else
                     {
-                        Console.WriteLine($"[JWT AUTH] Login response or token was null/empty");
+                        _logger.LogWarning("Ariba login response or token was null/empty");
                     }
                 }
                 else
                 {
-                    var errorContent = await result.Content.ReadAsStringAsync();
-                    Console.WriteLine($"[JWT AUTH] Login failed: {result.StatusCode} - {errorContent}");
+                    _logger.LogWarning("Ariba login failed: {StatusCode}", result.StatusCode);
                 }
 
                 return new FormResult
@@ -218,7 +216,7 @@ namespace QBExternalWebLibrary.Services.Authentication {
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[JWT AUTH] Exception: {ex.Message}");
+                _logger.LogError(ex, "Ariba login exception for session {SessionId}", sessionId);
                 return new FormResult
                 {
                     Succeeded = false,
@@ -231,18 +229,27 @@ namespace QBExternalWebLibrary.Services.Authentication {
         /// Get authentication state.
         /// </summary>
         public override async Task<AuthenticationState> GetAuthenticationStateAsync() {
-            Console.WriteLine($"[JWT AUTH] GetAuthenticationStateAsync called. Token present: {(_getToken() != null)}");
-            
             _authenticated = false;
             var user = Unauthenticated;
+
+            // Check if we have a token first
+            var token = _getToken();
+            if (string.IsNullOrEmpty(token))
+            {
+                // No token = not authenticated, don't make API calls
+                return new AuthenticationState(user);
+            }
 
             try {
                 // Token is automatically added by JwtTokenHandler
                 var userResponse = await _httpClient.GetAsync("api/accounts/info");
 
-                Console.WriteLine($"[JWT AUTH] api/accounts/info response: {userResponse.StatusCode}");
-
-                userResponse.EnsureSuccessStatusCode();
+                if (!userResponse.IsSuccessStatusCode)
+                {
+                    // Token might be expired or invalid
+                    _setToken(null);
+                    return new AuthenticationState(user);
+                }
 
                 var userJson = await userResponse.Content.ReadAsStringAsync();
                 var userInfo = JsonSerializer.Deserialize<UserInfo>(userJson, jsonSerializerOptions);
@@ -272,15 +279,17 @@ namespace QBExternalWebLibrary.Services.Authentication {
 
                     // Get roles
                     var rolesResponse = await _httpClient.GetAsync("roles");
-                    rolesResponse.EnsureSuccessStatusCode();
+                    
+                    if (rolesResponse.IsSuccessStatusCode)
+                    {
+                        var rolesJson = await rolesResponse.Content.ReadAsStringAsync();
+                        var roles = JsonSerializer.Deserialize<RoleClaim[]>(rolesJson, jsonSerializerOptions);
 
-                    var rolesJson = await rolesResponse.Content.ReadAsStringAsync();
-                    var roles = JsonSerializer.Deserialize<RoleClaim[]>(rolesJson, jsonSerializerOptions);
-
-                    if (roles?.Length > 0) {
-                        foreach (var role in roles) {
-                            if (!string.IsNullOrEmpty(role.Type) && !string.IsNullOrEmpty(role.Value)) {
-                                claims.Add(new Claim(role.Type, role.Value, role.ValueType, role.Issuer, role.OriginalIssuer));
+                        if (roles?.Length > 0) {
+                            foreach (var role in roles) {
+                                if (!string.IsNullOrEmpty(role.Type) && !string.IsNullOrEmpty(role.Value)) {
+                                    claims.Add(new Claim(role.Type, role.Value, role.ValueType, role.Issuer, role.OriginalIssuer));
+                                }
                             }
                         }
                     }
@@ -288,10 +297,9 @@ namespace QBExternalWebLibrary.Services.Authentication {
                     var id = new ClaimsIdentity(claims, nameof(CookieAuthenticationStateProvider));
                     user = new ClaimsPrincipal(id);
                     _authenticated = true;
-                    Console.WriteLine($"[JWT AUTH] User authenticated successfully: {userInfo.Email}");
                 }
-            } catch (Exception ex) { 
-                Console.WriteLine($"[JWT AUTH] Authentication failed: {ex.Message}");
+            } catch { 
+                // Clear token on any failure
                 _setToken(null);
             }
 

@@ -10,4 +10,11 @@
   <ItemGroup>
     <ProjectReference Include="..\QBExternalWebLibrary\QBExternalWebLibrary\QBExternalWebLibrary.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Ensure web.config is published for IIS/Azure App Service -->
+    <Content Update="web.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

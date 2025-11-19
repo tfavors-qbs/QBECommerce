@@ -3,12 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Components.WebAssembly;
-using Microsoft.AspNetCore.Components.WebAssembly.Http;
 
 namespace QBExternalWebLibrary.Services.Authentication {
     /// <summary>
-    /// Handler to ensure cookie credentials are automatically sent over with each request.
+    /// Handler to ensure credentials are automatically sent over with each request.
+    /// Note: This is for Blazor Server - WebAssembly-specific methods are not available.
     /// </summary>
     public class CookieHandler : DelegatingHandler {
         /// <summary>
@@ -18,8 +17,8 @@ namespace QBExternalWebLibrary.Services.Authentication {
         /// <param name="cancellationToken">The token to handle cancellations.</param>
         /// <returns>The <see cref="HttpResponseMessage"/>.</returns>
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) {
-            // include cookies!
-            request.SetBrowserRequestCredentials(BrowserRequestCredentials.Include);
+            // In Blazor Server, we don't need SetBrowserRequestCredentials (that's WebAssembly-only)
+            // The JwtTokenHandler will add the Authorization header
             request.Headers.Add("X-Requested-With", ["XMLHttpRequest"]);
 
             return base.SendAsync(request, cancellationToken);

@@ -31,6 +31,12 @@ namespace QBExternalWebLibrary.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) {
             base.OnModelCreating(modelBuilder);
+            
+            // Enforce one shopping cart per user with unique constraint
+            modelBuilder.Entity<ShoppingCart>()
+                .HasIndex(sc => sc.ApplicationUserId)
+                .IsUnique()
+                .HasDatabaseName("IX_ShoppingCarts_ApplicationUserId_Unique");
         }
     }
 
