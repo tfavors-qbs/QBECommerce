@@ -34,6 +34,13 @@ namespace ShopQualityboltWeb.Controllers.Api
             return _mapper.MapToEdit(_service.GetAll().Where(x => x.ClientId == user.ClientId));
         }
 
+        [HttpGet("client/{clientId}")]
+        [Authorize(Roles = "Admin,QBSales")]
+        public async Task<ActionResult<IEnumerable<ContractItemEditViewModel>>> GetContractItemsByClientForQBSales(int clientId) {
+            var contractItems = _service.GetAll().Where(x => x.ClientId == clientId);
+            return _mapper.MapToEdit(contractItems);
+        }
+
         [HttpGet("admin/client/{clientId}")]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<IEnumerable<ContractItemEditViewModel>>> GetContractItemsByClient(int clientId) {

@@ -1,0 +1,76 @@
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body1" Class="mb-4">
+            Select a user from <strong>@ClientName</strong> to create a shopping cart for:
+        </MudText>
+
+        @if (Users == null || !Users.Any())
+        {
+            <MudAlert Severity="Severity.Info">No users available without shopping carts.</MudAlert>
+        }
+        else
+        {
+            <MudList T="string" Clickable="true" @bind-SelectedValue="_selectedUserId">
+                @foreach (var user in Users)
+                {
+                    <MudListItem T="string" Value="@user.UserId">
+                        <div class="d-flex flex-column">
+                            <MudText Typo="Typo.body1"><strong>@user.UserName</strong></MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@user.UserEmail</MudText>
+                        </div>
+                    </MudListItem>
+                    <MudDivider />
+                }
+            </MudList>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Success" 
+                   Variant="Variant.Filled" 
+                   OnClick="Create"
+                   Disabled="string.IsNullOrEmpty(_selectedUserId)">
+            Create Cart
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public List<UserCartInfo> Users { get; set; }
+
+    [Parameter]
+    public string ClientName { get; set; }
+
+    private string _selectedUserId;
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Create()
+    {
+        if (string.IsNullOrEmpty(_selectedUserId))
+        {
+            Snackbar.Add("Please select a user", Severity.Warning);
+            return;
+        }
+
+        MudDialog.Close(DialogResult.Ok(_selectedUserId));
+    }
+
+    public class UserCartInfo
+    {
+        public string UserId { get; set; }
+        public string UserEmail { get; set; }
+        public string UserName { get; set; }
+        public bool HasCart { get; set; }
+        public int? CartId { get; set; }
+    }
+}

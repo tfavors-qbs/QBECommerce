@@ -8,6 +8,15 @@
         <Authorized>
             <MudNavLink Href="catalog" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Shop">Catalog</MudNavLink>
             
+            @* QBSales section - visible to QBSales and Admin users *@
+            <AuthorizeView Roles="QBSales,Admin" Context="salesContext">
+                <Authorized>
+                    <MudDivider Class="my-3" />
+                    <MudText Typo="Typo.body2" Class="px-4 mud-text-secondary">Sales Tools</MudText>
+                    <MudNavLink Href="qbsales/cart-management" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.ShoppingCartCheckout">Cart Management</MudNavLink>
+                </Authorized>
+            </AuthorizeView>
+            
             @* Admin section - only visible to Admin users *@
             <AuthorizeView Roles="Admin" Context="adminContext">
                 <Authorized>

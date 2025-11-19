@@ -22,4 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\QBExternalWebLibrary\QBExternalWebLibrary\QBExternalWebLibrary.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="ShopQualityboltWeb\" />
+  </ItemGroup>
 </Project>

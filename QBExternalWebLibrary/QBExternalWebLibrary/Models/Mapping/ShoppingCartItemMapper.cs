@@ -20,10 +20,12 @@ namespace QBExternalWebLibrary.Models.Mapping {
                 shoppingCartItem = new ShoppingCartItem {
                     Id = view.Id,
                     ShoppingCartId = view.ShoppingCartId,
+                    ContractItemId = view.ContractItemId,  // CRITICAL FIX: Include ContractItemId
                     Quantity = view.Quantity
                 };
             } else {
                 shoppingCartItem.ShoppingCartId = view.ShoppingCartId;
+                shoppingCartItem.ContractItemId = view.ContractItemId;  // CRITICAL FIX: Include ContractItemId
                 shoppingCartItem.Quantity = view.Quantity;
             }
             return shoppingCartItem;
@@ -33,6 +35,7 @@ namespace QBExternalWebLibrary.Models.Mapping {
             return new ShoppingCartItemEVM {
                 Id = model.Id,
                 ShoppingCartId= model.ShoppingCartId,
+                ContractItemId = model.ContractItemId,  // Consistency: Include ContractItemId
                 Quantity = model.Quantity
             };
         }

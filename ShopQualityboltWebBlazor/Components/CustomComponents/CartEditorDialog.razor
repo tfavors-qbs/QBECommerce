@@ -1,0 +1,323 @@
+@using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Models.Catalog
+@using QBExternalWebLibrary.Models.Pages
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+@inject ILogger<CartEditorDialog> Logger
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" Class="mb-2">Editing Cart for: @UserName</MudText>
+        
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+            <MudText Align="Align.Center">Loading cart...</MudText>
+        }
+        else
+        {
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudPaper Class="pa-4" Elevation="1">
+                        <MudText Typo="Typo.h6" Class="mb-4">Add Items to Cart</MudText>
+                        <MudAutocomplete T="ContractItemEditViewModel"
+                                         Label="Search Contract Items"
+                                         @bind-Value="_selectedItem"
+                                         SearchFunc="@SearchContractItems"
+                                         ToStringFunc="@(i => i != null ? $"{i.CustomerStkNo} - {i.Description}" : "")"
+                                         ResetValueOnEmptyText="true"
+                                         AdornmentIcon="@Icons.Material.Filled.Search"
+                                         AdornmentColor="Color.Primary" />
+                        
+                        @if (_selectedItem != null)
+                        {
+                            <MudNumericField @bind-Value="_quantityToAdd" 
+                                           Label="Quantity" 
+                                           Min="1" 
+                                           Class="mt-2" />
+                            <MudButton StartIcon="@Icons.Material.Filled.Add" 
+                                     Color="Color.Primary" 
+                                     Variant="Variant.Filled"
+                                     OnClick="AddItemToCart" 
+                                     Class="mt-2"
+                                     Disabled="_addingItem">
+                                @if (_addingItem)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                    <span>Adding...</span>
+                                }
+                                else
+                                {
+                                    <span>Add to Cart</span>
+                                }
+                            </MudButton>
+                        }
+                    </MudPaper>
+                </MudItem>
+
+                <MudItem xs="12" md="6">
+                    <MudPaper Class="pa-4" Elevation="1">
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+                            <MudText Typo="Typo.h6">Current Cart Items</MudText>
+                            @if (_cartPage?.ShoppingCartItemEVMs?.Any() == true)
+                            {
+                                <MudButton StartIcon="@Icons.Material.Filled.Delete" 
+                                         Color="Color.Error" 
+                                         Size="Size.Small"
+                                         OnClick="ClearCart">
+                                    Clear All
+                                </MudButton>
+                            }
+                        </MudStack>
+
+                        @if (_cartPage?.ShoppingCartItemEVMs?.Any() != true)
+                        {
+                            <MudAlert Severity="Severity.Info">Cart is empty</MudAlert>
+                        }
+                        else
+                        {
+                            <MudList T="string" Dense="true">
+                                @foreach (var item in _cartPage.ShoppingCartItemEVMs.Values)
+                                {
+                                    <MudListItem T="string">
+                                        <div class="d-flex justify-space-between align-center" style="width: 100%;">
+                                            <div style="flex: 1;">
+                                                <MudText Typo="Typo.body2"><strong>@item.ContractItemEditViewModel.CustomerStkNo</strong></MudText>
+                                                <MudText Typo="Typo.caption">@item.ContractItemEditViewModel.Description</MudText>
+                                            </div>
+                                            <div class="d-flex align-center">
+                                                <MudNumericField @bind-Value="item.Quantity" 
+                                                               Min="1" 
+                                                               Style="width: 80px;"
+                                                               Immediate="false"
+                                                               DebounceInterval="500"
+                                                               @bind-Value:after="@(() => UpdateItemQuantity(item))" />
+                                                <MudIconButton Icon="@Icons.Material.Filled.Delete" 
+                                                             Color="Color.Error" 
+                                                             Size="Size.Small"
+                                                             OnClick="@(() => RemoveItem(item))" />
+                                            </div>
+                                        </div>
+                                    </MudListItem>
+                                    <MudDivider />
+                                }
+                            </MudList>
+                            
+                            <MudText Typo="Typo.subtitle1" Class="mt-4">
+                                <strong>Total Items:</strong> @_cartPage.ShoppingCartItemEVMs.Count
+                            </MudText>
+                            <MudText Typo="Typo.subtitle1">
+                                <strong>Total Quantity:</strong> @_cartPage.ShoppingCartItemEVMs.Values.Sum(i => i.Quantity)
+                            </MudText>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public string UserId { get; set; }
+
+    [Parameter]
+    public string UserName { get; set; }
+
+    [Parameter]
+    public int? ClientId { get; set; }
+
+    private HttpClient _httpClient;
+    private bool _loading = true;
+    private bool _addingItem = false;
+    private ShoppingCartPageEVM _cartPage;
+    private List<ContractItemEditViewModel> _availableItems = new();
+    private ContractItemEditViewModel _selectedItem;
+    private int _quantityToAdd = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("Auth");
+        await LoadAvailableItems(); // Load items first
+        await LoadCart(); // Then load cart
+    }
+
+    private async Task LoadCart()
+    {
+        _loading = true;
+        try
+        {
+            var response = await _httpClient.GetAsync($"api/qbsales/carts/user/{UserId}");
+            if (response.IsSuccessStatusCode)
+            {
+                _cartPage = await response.Content.ReadFromJsonAsync<ShoppingCartPageEVM>();
+            }
+            else
+            {
+                Snackbar.Add("Failed to load cart", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading cart: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadAvailableItems()
+    {
+        try
+        {
+            if (!ClientId.HasValue)
+            {
+                Snackbar.Add("Cannot load items: Client ID not provided", Severity.Warning);
+                return;
+            }
+
+            // Use the QBSales-friendly endpoint
+            var response = await _httpClient.GetAsync($"api/contractitems/client/{ClientId.Value}");
+            if (response.IsSuccessStatusCode)
+            {
+                _availableItems = await response.Content.ReadFromJsonAsync<List<ContractItemEditViewModel>>() ?? new();
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Failed to load items: {response.StatusCode}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading items: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task<IEnumerable<ContractItemEditViewModel>> SearchContractItems(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+            return _availableItems.Take(20);
+
+        return _availableItems.Where(i =>
+            i.CustomerStkNo.Contains(value, StringComparison.InvariantCultureIgnoreCase) ||
+            i.Description.Contains(value, StringComparison.InvariantCultureIgnoreCase)
+        ).Take(20);
+    }
+
+    private async Task AddItemToCart()
+    {
+        if (_selectedItem == null) return;
+
+        _addingItem = true;
+        try
+        {
+            var request = new { ContractItemId = _selectedItem.Id, Quantity = _quantityToAdd };
+            var response = await _httpClient.PostAsJsonAsync($"api/qbsales/carts/user/{UserId}/items", request);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                _cartPage = await response.Content.ReadFromJsonAsync<ShoppingCartPageEVM>();
+                _selectedItem = null;
+                _quantityToAdd = 1;
+                Snackbar.Add("Item added to cart", Severity.Success);
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Failed to add item: {errorContent}", Severity.Error);
+                Logger.LogError("Failed to add item {ContractItemId} to cart. Status: {StatusCode}, Error: {Error}", 
+                    _selectedItem.Id, response.StatusCode, errorContent);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error adding item: {ex.Message}", Severity.Error);
+            Logger.LogError(ex, "Exception adding item {ContractItemId} to cart", _selectedItem?.Id);
+        }
+        finally
+        {
+            _addingItem = false;
+        }
+    }
+
+    private async Task UpdateItemQuantity(ShoppingCartItemEVM item)
+    {
+        try
+        {
+            var request = new { Quantity = item.Quantity };
+            var response = await _httpClient.PutAsJsonAsync($"api/qbsales/carts/user/{UserId}/items/{item.Id}", request);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                _cartPage = await response.Content.ReadFromJsonAsync<ShoppingCartPageEVM>();
+                Snackbar.Add("Quantity updated", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to update quantity", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error updating quantity: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task RemoveItem(ShoppingCartItemEVM item)
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"api/qbsales/carts/user/{UserId}/items/{item.Id}");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                _cartPage = await response.Content.ReadFromJsonAsync<ShoppingCartPageEVM>();
+                Snackbar.Add("Item removed from cart", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to remove item", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error removing item: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task ClearCart()
+    {
+        try
+        {
+            var response = await _httpClient.DeleteAsync($"api/qbsales/carts/user/{UserId}/clear");
+            
+            if (response.IsSuccessStatusCode)
+            {
+                _cartPage = await response.Content.ReadFromJsonAsync<ShoppingCartPageEVM>();
+                Snackbar.Add("Cart cleared", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to clear cart", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error clearing cart: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+}

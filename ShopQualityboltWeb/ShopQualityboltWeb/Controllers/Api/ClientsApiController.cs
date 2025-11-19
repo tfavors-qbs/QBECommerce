@@ -30,7 +30,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         }
 
         [HttpGet]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,QBSales")]
         public async Task<ActionResult<IEnumerable<Client>>> GetClients() {
             return _service.GetAll().ToList();
         }

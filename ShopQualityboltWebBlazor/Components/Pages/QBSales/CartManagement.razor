@@ -1,0 +1,344 @@
+@page "/qbsales/cart-management"
+@using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Models.Catalog
+@using QBExternalWebLibrary.Models.Pages
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Authorization
+@using ShopQualityboltWebBlazor.Components.CustomComponents
+@attribute [Authorize(Roles = "QBSales,Admin")]
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>QBSales - Cart Management</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">Shopping Cart Management</MudText>
+    <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-6">
+        Prepare and manage shopping carts for clients before they start their punchout sessions.
+    </MudText>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+        <MudText Align="Align.Center">Loading carts...</MudText>
+    }
+    else
+    {
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.h6" Class="mb-4">Filter by Client</MudText>
+                    <MudAutocomplete T="ClientEditViewModel" 
+                                     Label="Select Client" 
+                                     Value="_selectedClient"
+                                     SearchFunc="@SearchClients"
+                                     ToStringFunc="@(c => c?.Name ?? "")"
+                                     ResetValueOnEmptyText="true"
+                                     Clearable="true"
+                                     AdornmentIcon="@Icons.Material.Filled.Business"
+                                     AdornmentColor="Color.Primary"
+                                     ValueChanged="@OnClientSelected" />
+                    
+                    @if (_selectedClient != null)
+                    {
+                        <MudDivider Class="my-4" />
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Client Info:</MudText>
+                        <MudText Typo="Typo.body2">Legacy ID: @_selectedClient.LegacyId</MudText>
+                        <MudButton StartIcon="@Icons.Material.Filled.Clear" 
+                                   Color="Color.Secondary" 
+                                   Size="Size.Small" 
+                                   Class="mt-2"
+                                   OnClick="@ClearClientFilter">
+                            Clear Filter
+                        </MudButton>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="8">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+                        <MudText Typo="Typo.h6">Active Shopping Carts</MudText>
+                        <MudStack Row="true" Spacing="2">
+                            @if (_selectedClient != null)
+                            {
+                                <MudButton StartIcon="@Icons.Material.Filled.Add" 
+                                           Color="Color.Success" 
+                                           Size="Size.Small"
+                                           OnClick="@OpenCreateCartDialog">
+                                    Create Cart
+                                </MudButton>
+                            }
+                            <MudButton StartIcon="@Icons.Material.Filled.Refresh" 
+                                       Color="Color.Primary" 
+                                       Size="Size.Small"
+                                       OnClick="@LoadData">
+                                Refresh
+                            </MudButton>
+                        </MudStack>
+                    </MudStack>
+                    
+                    @if (_filteredCarts == null || !_filteredCarts.Any())
+                    {
+                        <MudAlert Severity="Severity.Info">
+                            @if (_selectedClient != null)
+                            {
+                                <text>No active shopping carts found for this client.</text>
+                            }
+                            else
+                            {
+                                <text>No active shopping carts found. Select a client to view their carts.</text>
+                            }
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudTable Items="@_filteredCarts" Hover="true" Dense="true" Striped="true">
+                            <HeaderContent>
+                                <MudTh>User</MudTh>
+                                <MudTh>Email</MudTh>
+                                <MudTh>Client</MudTh>
+                                <MudTh>Items</MudTh>
+                                <MudTh>Total Qty</MudTh>
+                                <MudTh>Actions</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="User">@context.UserName</MudTd>
+                                <MudTd DataLabel="Email">@context.UserEmail</MudTd>
+                                <MudTd DataLabel="Client">@context.ClientName</MudTd>
+                                <MudTd DataLabel="Items">@context.ItemCount</MudTd>
+                                <MudTd DataLabel="Total Qty">@context.TotalQuantity</MudTd>
+                                <MudTd DataLabel="Actions">
+                                    <MudButton StartIcon="@Icons.Material.Filled.Edit" 
+                                               Color="Color.Primary" 
+                                               Size="Size.Small"
+                                               OnClick="@(() => EditCart(context))">
+                                        Manage
+                                    </MudButton>
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private HttpClient _httpClient;
+    private bool _loading = true;
+    private List<ShoppingCartWithUserInfo> _allCarts = new();
+    private List<ShoppingCartWithUserInfo> _filteredCarts = new();
+    private List<ClientEditViewModel> _allClients = new();
+    private ClientEditViewModel _selectedClient;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("Auth");
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            // Load all clients
+            var clientsResponse = await _httpClient.GetAsync("api/clients");
+            if (clientsResponse.IsSuccessStatusCode)
+            {
+                _allClients = await clientsResponse.Content.ReadFromJsonAsync<List<ClientEditViewModel>>() ?? new();
+            }
+
+            // Load all carts
+            var cartsResponse = await _httpClient.GetAsync("api/qbsales/carts");
+            if (cartsResponse.IsSuccessStatusCode)
+            {
+                _allCarts = await cartsResponse.Content.ReadFromJsonAsync<List<ShoppingCartWithUserInfo>>() ?? new();
+                
+                // Apply filter if client is selected
+                if (_selectedClient != null)
+                {
+                    _filteredCarts = _allCarts.Where(c => c.ClientId == _selectedClient.Id).ToList();
+                }
+                else
+                {
+                    _filteredCarts = _allCarts;
+                }
+            }
+            else
+            {
+                var errorContent = await cartsResponse.Content.ReadAsStringAsync();
+                Snackbar.Add($"Failed to load shopping carts: {cartsResponse.StatusCode} - {errorContent}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error loading data: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task<IEnumerable<ClientEditViewModel>> SearchClients(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+            return _allClients;
+        
+        return _allClients.Where(c => c.Name.Contains(value, StringComparison.InvariantCultureIgnoreCase));
+    }
+
+    private void OnClientSelected(ClientEditViewModel client)
+    {
+        _selectedClient = client;
+        if (client != null)
+        {
+            _filteredCarts = _allCarts.Where(c => c.ClientId == client.Id).ToList();
+        }
+        else
+        {
+            _filteredCarts = _allCarts;
+        }
+    }
+
+    private void ClearClientFilter()
+    {
+        _selectedClient = null;
+        _filteredCarts = _allCarts;
+    }
+
+    private async Task EditCart(ShoppingCartWithUserInfo cartInfo)
+    {
+        var parameters = new DialogParameters
+        {
+            { "UserId", cartInfo.UserId },
+            { "UserName", cartInfo.UserName },
+            { "ClientId", cartInfo.ClientId }
+        };
+
+        var options = new DialogOptions 
+        { 
+            MaxWidth = MaxWidth.Large, 
+            FullWidth = true,
+            CloseButton = true
+        };
+
+        var dialog = await DialogService.ShowAsync<CartEditorDialog>("Manage Shopping Cart", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await LoadData();
+            Snackbar.Add("Cart updated successfully", Severity.Success);
+        }
+    }
+
+    private async Task OpenCreateCartDialog()
+    {
+        if (_selectedClient == null)
+        {
+            Snackbar.Add("Please select a client first", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            // Load users for the selected client
+            var response = await _httpClient.GetAsync($"api/qbsales/carts/client/{_selectedClient.Id}/users");
+            if (!response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Failed to load users", Severity.Error);
+                return;
+            }
+
+            var users = await response.Content.ReadFromJsonAsync<List<UserCartInfo>>() ?? new();
+            
+            // Filter to only show users without carts
+            var usersWithoutCarts = users.Where(u => !u.HasCart).ToList();
+
+            if (!usersWithoutCarts.Any())
+            {
+                Snackbar.Add("All users in this client already have shopping carts", Severity.Info);
+                return;
+            }
+
+            var parameters = new DialogParameters
+            {
+                { "Users", usersWithoutCarts },
+                { "ClientName", _selectedClient.Name }
+            };
+
+            var options = new DialogOptions 
+            { 
+                MaxWidth = MaxWidth.Small, 
+                FullWidth = true,
+                CloseButton = true
+            };
+
+            var dialog = await DialogService.ShowAsync<CreateCartDialog>("Create Shopping Cart", parameters, options);
+            var result = await dialog.Result;
+
+            if (!result.Canceled && result.Data != null)
+            {
+                var selectedUserId = result.Data.ToString();
+                await CreateCart(selectedUserId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error opening create cart dialog: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task CreateCart(string userId)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"api/qbsales/carts/user/{userId}/create", null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadData();
+                Snackbar.Add("Shopping cart created successfully", Severity.Success);
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.Conflict)
+            {
+                Snackbar.Add("Cart already exists for this user", Severity.Warning);
+            }
+            else
+            {
+                Snackbar.Add("Failed to create shopping cart", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error creating cart: {ex.Message}", Severity.Error);
+        }
+    }
+
+    public class ShoppingCartWithUserInfo
+    {
+        public int CartId { get; set; }
+        public string UserId { get; set; }
+        public string UserEmail { get; set; }
+        public string UserName { get; set; }
+        public int? ClientId { get; set; }
+        public string ClientName { get; set; }
+        public int ItemCount { get; set; }
+        public int TotalQuantity { get; set; }
+        public int LastModified { get; set; }
+    }
+
+    public class UserCartInfo
+    {
+        public string UserId { get; set; }
+        public string UserEmail { get; set; }
+        public string UserName { get; set; }
+        public bool HasCart { get; set; }
+        public int? CartId { get; set; }
+    }
+}

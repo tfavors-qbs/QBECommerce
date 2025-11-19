@@ -160,7 +160,7 @@ using (var scope = app.Services.CreateScope())
         // Seed roles
         logger.LogInformation("Seeding roles...");
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
-        var roles = new[] { "Admin", "User" };
+        var roles = new[] { "Admin", "User", "QBSales" };
 
         foreach (var role in roles)
         {
