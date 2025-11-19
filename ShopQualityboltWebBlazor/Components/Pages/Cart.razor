@@ -304,13 +304,8 @@
             }
             
             debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Order message generated");
-            debugInfo.Add($"  - Message length: {orderMessage.Length} characters");
-            debugInfo.Add($"  - First 200 chars: {orderMessage.Substring(0, Math.Min(200, orderMessage.Length))}");
             
-            // Log the FULL cXML message to console for inspection
-            await JSRuntime.InvokeVoidAsync("console.group", "📄 FULL cXML ORDER MESSAGE");
-            await JSRuntime.InvokeVoidAsync("console.log", orderMessage);
-            await JSRuntime.InvokeVoidAsync("console.groupEnd");
+            // Note: Debug console logging removed - errors are logged to database for admin review
 
             // Step 7: POST to Ariba
             string postUrl = session.PostUrl;
@@ -360,7 +355,6 @@
                 
                 // Submit cXML via HTML form - this is how PunchOut protocol works
                 debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Submitting HTML form with cXML to Ariba...");
-                await JSRuntime.InvokeVoidAsync("console.log", "[PunchOut] Creating HTML form for cXML submission");
                 await JSRuntime.InvokeVoidAsync("submitPunchOutForm", postUrl, orderMessage);
                 
                 // Note: The form submission will cause the iframe to navigate/close
@@ -408,59 +402,45 @@
     
     private async Task ShowDebugError(string title, string message, List<string> debugInfo, string? responseContent = null)
     {
-        var debugText = string.Join("\n", debugInfo);
-        
-        // Log to browser console (visible in DevTools even in iframe)
-        await JSRuntime.InvokeVoidAsync("console.error", $"[PunchOut Checkout Error] {title}");
-        await JSRuntime.InvokeVoidAsync("console.error", message);
-        await JSRuntime.InvokeVoidAsync("console.group", "Debug Information");
-        foreach (var line in debugInfo)
-        {
-            await JSRuntime.InvokeVoidAsync("console.log", line);
-        }
-        if (!string.IsNullOrEmpty(responseContent))
-        {
-            await JSRuntime.InvokeVoidAsync("console.log", $"Response Content: {responseContent}");
-        }
-        await JSRuntime.InvokeVoidAsync("console.groupEnd");
-        
         // Send error log to server for persistence (production debugging)
         try
         {
             var session = punchOutManagementService.CurrentPunchOutSession;
+            var statusCode = ExtractStatusCodeFromDebugInfo(debugInfo);
             var errorLog = new
             {
-                SessionId = session?.SessionId ?? "Unknown",
-                PostUrl = session?.PostUrl ?? "Unknown",
-                ErrorMessage = $"{title}: {message}",
-                StatusCode = ExtractStatusCodeFromDebugInfo(debugInfo),
-                DebugSteps = debugInfo,
-                ResponseContent = responseContent,
-                CartItemCount = ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Count ?? 0,
-                TotalAmount = totalPrice
+                ErrorType = "PunchOut Checkout",
+                ErrorTitle = title,
+                ErrorMessage = message,
+                StackTrace = string.Join("\n", debugInfo),
+                AdditionalData = new
+                {
+                    SessionId = session?.SessionId ?? "Unknown",
+                    PostUrl = session?.PostUrl ?? "Unknown",
+                    StatusCode = statusCode,
+                    DebugSteps = debugInfo,
+                    ResponseContent = responseContent,
+                    CartItemCount = ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Count ?? 0,
+                    TotalAmount = totalPrice
+                },
+                SessionId = session?.SessionId,
+                StatusCode = statusCode
             };
             
             // Fire and forget - don't block UI if logging fails
-            _ = httpClient.PostAsJsonAsync("api/debuglog/checkout-error", errorLog);
+            _ = httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
         }
         catch
         {
             // Silently fail - logging errors shouldn't break the UI
         }
         
-        // Build message with toggle for debug info
-        var parameters = new DialogParameters
-        {
-            { "Title", title },
-            { "Message", message },
-            { "DebugInfo", debugText },
-            { "ResponseContent", responseContent }
-        };
-        
-        var dialog = await DialogService.ShowAsync<ShopQualityboltWebBlazor.Components.CustomComponents.CheckoutErrorDialog>(
-            "Checkout Error", 
-            parameters, 
-            new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true });
+        // Show simple error dialog to user - no debug info exposed
+        await DialogService.ShowMessageBox(
+            title, 
+            message + "\n\nThis error has been logged. Please contact support if the issue persists.",
+            yesText: "OK",
+            options: new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
     }
     
     private int? ExtractStatusCodeFromDebugInfo(List<string> debugInfo)
@@ -476,4 +456,4 @@
         }
         return null;
     }
-}
+}}

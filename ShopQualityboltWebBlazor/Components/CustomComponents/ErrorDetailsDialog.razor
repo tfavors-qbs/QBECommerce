@@ -1,0 +1,147 @@
+@using QBExternalWebLibrary.Models
+@using System.Text.Json
+@inject IJSRuntime JSRuntime
+
+<MudDialog>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudAlert Severity="GetSeverity()" Variant="Variant.Filled">
+                <MudText Typo="Typo.h6">@Error.ErrorTitle</MudText>
+            </MudAlert>
+
+            <MudPaper Elevation="0" Class="pa-3" Style="background-color: var(--mud-palette-background-grey);">
+                <MudText Typo="Typo.subtitle2" GutterBottom="true"><strong>Error Message:</strong></MudText>
+                <MudText Typo="Typo.body2" Style="white-space: pre-wrap;">@Error.ErrorMessage</MudText>
+            </MudPaper>
+
+            <MudGrid>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2"><strong>Error Type:</strong> @Error.ErrorType</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2"><strong>Created:</strong> @Error.CreatedAt.ToLocalTime().ToString("g")</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2"><strong>Status Code:</strong> @(Error.StatusCode?.ToString() ?? "N/A")</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2"><strong>Session ID:</strong> @(Error.SessionId ?? "N/A")</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2"><strong>User:</strong> @(Error.UserEmail ?? "Anonymous")</MudText>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudText Typo="Typo.body2"><strong>IP Address:</strong> @(Error.IpAddress ?? "N/A")</MudText>
+                </MudItem>
+            </MudGrid>
+
+            @if (!string.IsNullOrEmpty(Error.RequestUrl))
+            {
+                <MudPaper Elevation="0" Class="pa-3" Style="background-color: var(--mud-palette-background-grey);">
+                    <MudText Typo="Typo.subtitle2" GutterBottom="true"><strong>Request URL:</strong></MudText>
+                    <MudText Typo="Typo.body2" Style="word-break: break-all;">@Error.RequestUrl</MudText>
+                </MudPaper>
+            }
+
+            @if (!string.IsNullOrEmpty(Error.AdditionalData))
+            {
+                <MudExpansionPanels>
+                    <MudExpansionPanel Text="Additional Data (JSON)">
+                        <MudPaper Elevation="0" Class="pa-3" Style="background-color: #1e1e1e; color: #d4d4d4; overflow-x: auto;">
+                            <pre style="margin: 0; font-family: 'Courier New', monospace; font-size: 12px;">@FormatJson(Error.AdditionalData)</pre>
+                        </MudPaper>
+                        <MudButton OnClick="CopyAdditionalData" StartIcon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" Class="mt-2">
+                            Copy to Clipboard
+                        </MudButton>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+
+            @if (!string.IsNullOrEmpty(Error.StackTrace))
+            {
+                <MudExpansionPanels>
+                    <MudExpansionPanel Text="Stack Trace / Debug Info">
+                        <MudPaper Elevation="0" Class="pa-3" Style="background-color: #1e1e1e; color: #d4d4d4; max-height: 400px; overflow-y: auto;">
+                            <pre style="margin: 0; font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap;">@Error.StackTrace</pre>
+                        </MudPaper>
+                        <MudButton OnClick="CopyStackTrace" StartIcon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" Class="mt-2">
+                            Copy to Clipboard
+                        </MudButton>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+
+            @if (Error.IsResolved)
+            {
+                <MudAlert Severity="Severity.Success" Variant="Variant.Outlined">
+                    <MudText Typo="Typo.body2"><strong>Resolved:</strong> @Error.ResolvedAt?.ToLocalTime().ToString("g")</MudText>
+                    @if (!string.IsNullOrEmpty(Error.ResolutionNotes))
+                    {
+                        <MudText Typo="Typo.body2" Class="mt-2"><strong>Notes:</strong> @Error.ResolutionNotes</MudText>
+                    }
+                </MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    MudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public ErrorLogViewModel Error { get; set; } = new();
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+
+    private Severity GetSeverity()
+    {
+        return Error.ErrorType switch
+        {
+            "PunchOut Checkout" => Severity.Error,
+            "Cart Management" => Severity.Warning,
+            "API Error" => Severity.Info,
+            _ => Severity.Normal
+        };
+    }
+
+    private string FormatJson(string json)
+    {
+        try
+        {
+            var jsonDocument = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(jsonDocument, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return json; // Return original if parsing fails
+        }
+    }
+
+    private async Task CopyAdditionalData()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", Error.AdditionalData);
+        }
+        catch
+        {
+            // Silently fail if clipboard API not available
+        }
+    }
+
+    private async Task CopyStackTrace()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", Error.StackTrace);
+        }
+        catch
+        {
+            // Silently fail if clipboard API not available
+        }
+    }
+}

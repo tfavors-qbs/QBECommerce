@@ -1,0 +1,333 @@
+@page "/admin/errorlogs"
+@using QBExternalWebLibrary.Models
+@using System.Text.Json
+@using Microsoft.AspNetCore.Authorization
+@using ShopQualityboltWebBlazor.Components.CustomComponents
+@inject HttpClient HttpClient
+@inject IDialogService DialogService
+@attribute [Authorize(Roles = "Admin")]
+
+<PageTitle>Error Logs - Admin</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-4">
+    <MudIcon Icon="@Icons.Material.Filled.BugReport" Size="Size.Large" Color="Color.Error" />
+    <MudText Typo="Typo.h4">Error Logs</MudText>
+</MudStack>
+
+@if (isLoading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+
+<MudPaper Class="pa-4 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="3">
+            <MudCard Outlined="true">
+                <MudCardContent>
+                    <MudText Typo="Typo.h3" Color="Color.Error">@stats?.TotalErrors</MudText>
+                    <MudText Typo="Typo.body2">Total Errors (30 days)</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <MudCard Outlined="true">
+                <MudCardContent>
+                    <MudText Typo="Typo.h3" Color="Color.Warning">@stats?.UnresolvedErrors</MudText>
+                    <MudText Typo="Typo.body2">Unresolved</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <MudCard Outlined="true">
+                <MudCardContent>
+                    <MudText Typo="Typo.h3" Color="Color.Success">@stats?.ResolvedErrors</MudText>
+                    <MudText Typo="Typo.body2">Resolved</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+        <MudItem xs="12" sm="3">
+            <MudCard Outlined="true">
+                <MudCardContent>
+                    <MudText Typo="Typo.h3">@(stats?.ErrorsByType?.Count ?? 0)</MudText>
+                    <MudText Typo="Typo.body2">Error Types</MudText>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Class="pa-4">
+    <MudStack Row="true" Spacing="2" Class="mb-4">
+        <MudSelect @bind-Value="filterErrorType" Label="Error Type" Clearable="true" Variant="Variant.Outlined" Dense="true">
+            @if (stats?.ErrorsByType != null)
+            {
+                @foreach (var type in stats.ErrorsByType)
+                {
+                    <MudSelectItem Value="@type.ErrorType">@type.ErrorType (@type.Count)</MudSelectItem>
+                }
+            }
+        </MudSelect>
+        <MudSelect @bind-Value="filterIsResolved" Label="Status" Clearable="true" Variant="Variant.Outlined" Dense="true">
+            <MudSelectItem Value="@((bool?)true)">Resolved</MudSelectItem>
+            <MudSelectItem Value="@((bool?)false)">Unresolved</MudSelectItem>
+        </MudSelect>
+        <MudDatePicker @bind-Date="filterStartDate" Label="Start Date" Clearable="true" Variant="Variant.Outlined" Dense="true" />
+        <MudDatePicker @bind-Date="filterEndDate" Label="End Date" Clearable="true" Variant="Variant.Outlined" Dense="true" />
+        <MudButton OnClick="ApplyFilters" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FilterList">Filter</MudButton>
+        <MudButton OnClick="ClearFilters" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Clear">Clear</MudButton>
+    </MudStack>
+
+    <MudTable Items="@errors" Loading="@isLoading" Hover="true" Dense="true" FixedHeader="true" Height="calc(100vh - 500px)">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Type</MudTh>
+            <MudTh>Title</MudTh>
+            <MudTh>User</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">@context.Id</MudTd>
+            <MudTd DataLabel="Type">
+                <MudChip T="string" Size="Size.Small" Color="GetErrorTypeColor(context.ErrorType)">@context.ErrorType</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Title">
+                <MudText Typo="Typo.body2">@context.ErrorTitle</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@context.ErrorMessage.Substring(0, Math.Min(100, context.ErrorMessage.Length))...</MudText>
+            </MudTd>
+            <MudTd DataLabel="User">
+                <MudText Typo="Typo.body2">@context.UserEmail</MudText>
+            </MudTd>
+            <MudTd DataLabel="Created">
+                <MudText Typo="Typo.body2">@context.CreatedAt.ToLocalTime().ToString("g")</MudText>
+            </MudTd>
+            <MudTd DataLabel="Status">
+                @if (context.IsResolved)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Icon="@Icons.Material.Filled.CheckCircle">Resolved</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Icon="@Icons.Material.Filled.Error">Open</MudChip>
+                }
+            </MudTd>
+            <MudTd DataLabel="Actions">
+                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" OnClick="@(() => ViewError(context))" Title="View Details" />
+                @if (!context.IsResolved)
+                {
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Size="Size.Small" Color="Color.Success" OnClick="@(() => ResolveError(context))" Title="Mark as Resolved" />
+                }
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteError(context))" Title="Delete" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    @if (totalPages > 1)
+    {
+        <MudPagination Class="mt-4" Count="@totalPages" Selected="@currentPage" SelectedChanged="PageChanged" />
+    }
+</MudPaper>
+
+@code {
+    private List<ErrorLogViewModel> errors = new();
+    private ErrorStatsResponse? stats;
+    private bool isLoading = true;
+
+    // Filters
+    private string? filterErrorType;
+    private bool? filterIsResolved;
+    private DateTime? filterStartDate;
+    private DateTime? filterEndDate;
+
+    // Pagination
+    private int currentPage = 1;
+    private int pageSize = 50;
+    private int totalPages = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+        await LoadErrors();
+    }
+
+    private async Task LoadStats()
+    {
+        try
+        {
+            stats = await HttpClient.GetFromJsonAsync<ErrorStatsResponse>("api/errorlogs/stats?days=30");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to load error stats: {ex.Message}");
+        }
+    }
+
+    private async Task LoadErrors()
+    {
+        isLoading = true;
+        try
+        {
+            var queryParams = new List<string>
+            {
+                $"page={currentPage}",
+                $"pageSize={pageSize}"
+            };
+
+            if (!string.IsNullOrEmpty(filterErrorType))
+                queryParams.Add($"errorType={Uri.EscapeDataString(filterErrorType)}");
+
+            if (filterIsResolved.HasValue)
+                queryParams.Add($"isResolved={filterIsResolved.Value}");
+
+            if (filterStartDate.HasValue)
+                queryParams.Add($"startDate={filterStartDate.Value:yyyy-MM-dd}");
+
+            if (filterEndDate.HasValue)
+                queryParams.Add($"endDate={filterEndDate.Value:yyyy-MM-dd}");
+
+            var query = string.Join("&", queryParams);
+            var response = await HttpClient.GetFromJsonAsync<ErrorLogListResponse>($"api/errorlogs?{query}");
+
+            if (response != null)
+            {
+                errors = response.Errors;
+                totalPages = response.TotalPages;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Failed to load errors: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ApplyFilters()
+    {
+        currentPage = 1;
+        await LoadErrors();
+    }
+
+    private async Task ClearFilters()
+    {
+        filterErrorType = null;
+        filterIsResolved = null;
+        filterStartDate = null;
+        filterEndDate = null;
+        currentPage = 1;
+        await LoadErrors();
+    }
+
+    private async Task PageChanged(int page)
+    {
+        currentPage = page;
+        await LoadErrors();
+    }
+
+    private Color GetErrorTypeColor(string errorType)
+    {
+        return errorType switch
+        {
+            "PunchOut Checkout" => Color.Error,
+            "Cart Management" => Color.Warning,
+            "API Error" => Color.Info,
+            _ => Color.Default
+        };
+    }
+
+    private async Task ViewError(ErrorLogViewModel error)
+    {
+        var parameters = new DialogParameters
+        {
+            { "Error", error }
+        };
+
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true };
+        await DialogService.ShowAsync<ErrorDetailsDialog>("Error Details", parameters, options);
+    }
+
+    private async Task ResolveError(ErrorLogViewModel error)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Resolve Error",
+            "Mark this error as resolved?",
+            yesText: "Resolve", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                var response = await HttpClient.PutAsJsonAsync($"api/errorlogs/{error.Id}/resolve", new { resolutionNotes = "Resolved via admin panel" });
+                response.EnsureSuccessStatusCode();
+
+                await LoadStats();
+                await LoadErrors();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to resolve error: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task DeleteError(ErrorLogViewModel error)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Delete Error",
+            $"Are you sure you want to delete this error log? This action cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (result == true)
+        {
+            try
+            {
+                var response = await HttpClient.DeleteAsync($"api/errorlogs/{error.Id}");
+                response.EnsureSuccessStatusCode();
+
+                await LoadStats();
+                await LoadErrors();
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Failed to delete error: {ex.Message}");
+            }
+        }
+    }
+
+    // Response types (match API DTOs)
+    public class ErrorStatsResponse
+    {
+        public int TotalErrors { get; set; }
+        public int UnresolvedErrors { get; set; }
+        public int ResolvedErrors { get; set; }
+        public List<ErrorTypeCount> ErrorsByType { get; set; } = new();
+        public List<ErrorSummary> RecentErrors { get; set; } = new();
+    }
+
+    public class ErrorTypeCount
+    {
+        public string ErrorType { get; set; } = string.Empty;
+        public int Count { get; set; }
+    }
+
+    public class ErrorSummary
+    {
+        public int Id { get; set; }
+        public string ErrorType { get; set; } = string.Empty;
+        public string ErrorTitle { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public bool IsResolved { get; set; }
+    }
+
+    public class ErrorLogListResponse
+    {
+        public List<ErrorLogViewModel> Errors { get; set; } = new();
+        public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public int TotalPages { get; set; }
+    }
+}

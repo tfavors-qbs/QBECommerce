@@ -27,6 +27,7 @@ namespace QBExternalWebLibrary.Data
         public DbSet<ShoppingCart> ShoppingCarts { get; set; }
         public DbSet<ShoppingCartItem> ShoppingCartItems { get; set; }
 		public DbSet<PunchOutSession> PunchOutSessions { get; set; }
+		public DbSet<ErrorLog> ErrorLogs { get; set; }
 		public DataContext(DbContextOptions<DataContext> options) : base(options) { }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) {
