@@ -1,14 +1,14 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components.Authorization;
 using System.Text;
 using QBExternalWebLibrary.Services.Http.ContentTypes.Identity;
-using QBExternalWebLibrary.Services.Authentication;
+using System.Net.Http.Headers;
 
 namespace QBExternalWebLibrary.Services.Authentication {
     /// <summary>
-    /// Handles state for cookie-based auth.
+    /// Handles state for cookie-based auth and JWT token-based auth for PunchOut.
     /// </summary>
     public class CookieAuthenticationStateProvider : AuthenticationStateProvider, IAccountManagement {
         /// <summary>
@@ -25,6 +25,16 @@ namespace QBExternalWebLibrary.Services.Authentication {
         private readonly HttpClient _httpClient;
 
         /// <summary>
+        /// Token getter function - injected from DI
+        /// </summary>
+        private readonly Func<string?> _getToken;
+        
+        /// <summary>
+        /// Token setter action - injected from DI
+        /// </summary>
+        private readonly Action<string?> _setToken;
+
+        /// <summary>
         /// Authentication state.
         /// </summary>
         private bool _authenticated = false;
@@ -39,33 +49,35 @@ namespace QBExternalWebLibrary.Services.Authentication {
         /// Create a new instance of the auth provider.
         /// </summary>
         /// <param name="httpClientFactory">Factory to retrieve auth client.</param>
-        public CookieAuthenticationStateProvider(IHttpClientFactory httpClientFactory)
-            => _httpClient = httpClientFactory.CreateClient("Auth");
+        /// <param name="getToken">Function to get current JWT token.</param>
+        /// <param name="setToken">Action to set JWT token.</param>
+        public CookieAuthenticationStateProvider(
+            IHttpClientFactory httpClientFactory,
+            Func<string?> getToken,
+            Action<string?> setToken)
+        {
+            _httpClient = httpClientFactory.CreateClient("Auth");
+            _getToken = getToken;
+            _setToken = setToken;
+        }
 
         /// <summary>
         /// Register a new user.
         /// </summary>
-        /// <param name="email">The user's email address.</param>
-        /// <param name="password">The user's password.</param>
-        /// <returns>The result serialized to a <see cref="FormResult"/>.
-        /// </returns>
         public async Task<FormResult> RegisterAsync(string email, string password) {
             string[] defaultDetail = ["An unknown error prevented registration from succeeding."];
 
             try {
-                // make the request
                 var result = await _httpClient.PostAsJsonAsync(
                     "register", new {
                         email,
                         password
                     });
 
-                // successful?
                 if (result.IsSuccessStatusCode) {
                     return new FormResult { Succeeded = true };
                 }
 
-                // body should contain details about why it failed
                 var details = await result.Content.ReadAsStringAsync();
                 var problemDetails = JsonDocument.Parse(details);
                 var errors = new List<string>();
@@ -82,14 +94,12 @@ namespace QBExternalWebLibrary.Services.Authentication {
                     }
                 }
 
-                // return the error list
                 return new FormResult {
                     Succeeded = false,
                     ErrorList = problemDetails == null ? defaultDetail : [.. errors]
                 };
             } catch { }
 
-            // unknown error
             return new FormResult {
                 Succeeded = false,
                 ErrorList = defaultDetail
@@ -97,129 +107,176 @@ namespace QBExternalWebLibrary.Services.Authentication {
         }
 
         /// <summary>
-        /// User login.
+        /// User login with email/password - now returns JWT token.
         /// </summary>
-        /// <param name="email">The user's email address.</param>
-        /// <param name="password">The user's password.</param>
-        /// <returns>The result of the login request serialized to a <see cref="FormResult"/>.</returns>
         public async Task<FormResult> LoginAsync(string email, string password) {
-            ////try
-            ////{
-            //// login with cookies
-            ////var result = await _httpClient.PostAsJsonAsync(
-            ////    "login?useCookies=true", new {
-            ////        email,
-            ////        password
-            ////    });
+            try
+            {
+                Console.WriteLine($"[JWT AUTH] Starting regular login for email: {email}");
+                
+                var result = await _httpClient.PostAsJsonAsync(
+                    "api/accounts/login", new {
+                        email,
+                        password
+                    });
 
-            var result = await _httpClient.PostAsJsonAsync(
-                "api/accounts/login?useCookies=true", new {
-                    email,
-                    password
-                });
+                Console.WriteLine($"[JWT AUTH] Regular login response status: {result.StatusCode}");
 
-            // success?
-            if (result.IsSuccessStatusCode) {
-                // need to refresh auth state
-                NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+                if (result.IsSuccessStatusCode) {
+                    var responseContent = await result.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[JWT AUTH] Response: {responseContent.Substring(0, Math.Min(200, responseContent.Length))}");
+                    
+                    var loginResponse = JsonSerializer.Deserialize<LoginResponse>(responseContent, jsonSerializerOptions);
+                    
+                    if (loginResponse != null && !string.IsNullOrEmpty(loginResponse.accessToken))
+                    {
+                        // Store the JWT token - JwtTokenHandler will pick it up automatically
+                        _setToken(loginResponse.accessToken);
+                        
+                        Console.WriteLine($"[JWT AUTH] Token stored successfully for {email}. Length: {loginResponse.accessToken.Length}");
+                        
+                        // Refresh auth state
+                        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+                        
+                        return new FormResult { Succeeded = true };
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[JWT AUTH] Login response or token was null/empty");
+                    }
+                }
+                else
+                {
+                    var errorContent = await result.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[JWT AUTH] Regular login failed: {result.StatusCode} - {errorContent}");
+                }
 
-                // success!
-                return new FormResult { Succeeded = true };
+                return new FormResult {
+                    Succeeded = false,
+                    ErrorList = ["Invalid email and/or password."]
+                };
             }
-            //}
-            //catch { }
-
-            // unknown error
-            return new FormResult {
-                Succeeded = false,
-                ErrorList = ["Invalid email and/or password."]
-            };
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[JWT AUTH] Regular login exception: {ex.Message}");
+                return new FormResult {
+                    Succeeded = false,
+                    ErrorList = [$"Login error: {ex.Message}"]
+                };
+            }
         }
 
-		public async Task<FormResult> LoginAsync(string sessionId)
-		{
-			HttpResponseMessage result = await _httpClient.PostAsJsonAsync("api/accounts/login/ariba", sessionId);
+        /// <summary>
+        /// Login for Ariba PunchOut using session ID - returns JWT token.
+        /// </summary>
+        public async Task<FormResult> LoginAsync(string sessionId)
+        {
+            try
+            {
+                Console.WriteLine($"[JWT AUTH] Starting Ariba login with sessionId: {sessionId}");
+                
+                var result = await _httpClient.PostAsJsonAsync("api/accounts/login/ariba", sessionId);
 
-			// success?
-			if (result.IsSuccessStatusCode)
-			{
-				// need to refresh auth state
-				NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+                Console.WriteLine($"[JWT AUTH] Login response status: {result.StatusCode}");
 
-				// success!
-				return new FormResult { Succeeded = true };
-			}
-			//}
-			//catch { }
+                if (result.IsSuccessStatusCode)
+                {
+                    var responseContent = await result.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[JWT AUTH] Response: {responseContent.Substring(0, Math.Min(200, responseContent.Length))}");
+                    
+                    var loginResponse = JsonSerializer.Deserialize<LoginResponse>(responseContent, jsonSerializerOptions);
+                    
+                    if (loginResponse != null && !string.IsNullOrEmpty(loginResponse.accessToken))
+                    {
+                        // Store the JWT token - JwtTokenHandler will pick it up automatically
+                        _setToken(loginResponse.accessToken);
+                        
+                        Console.WriteLine($"[JWT AUTH] Token stored successfully. Length: {loginResponse.accessToken.Length}");
+                        Console.WriteLine($"[JWT AUTH] Token verification: {(_getToken() != null ? "SUCCESS" : "FAILED")}");
+                        
+                        // Refresh auth state
+                        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+                        
+                        return new FormResult { Succeeded = true };
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[JWT AUTH] Login response or token was null/empty");
+                    }
+                }
+                else
+                {
+                    var errorContent = await result.Content.ReadAsStringAsync();
+                    Console.WriteLine($"[JWT AUTH] Login failed: {result.StatusCode} - {errorContent}");
+                }
 
-			// unknown error
-			return new FormResult
-			{
-				Succeeded = false,
-				ErrorList = ["Invalid email and/or password."]
-			};
-		}
+                return new FormResult
+                {
+                    Succeeded = false,
+                    ErrorList = ["Failed to authenticate with PunchOut session."]
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[JWT AUTH] Exception: {ex.Message}");
+                return new FormResult
+                {
+                    Succeeded = false,
+                    ErrorList = [$"Login error: {ex.Message}"]
+                };
+            }
+        }
 
-		
-
-		/// <summary>
-		/// Get authentication state.
-		/// </summary>
-		/// <remarks>
-		/// Called by Blazor anytime and authentication-based decision needs to be made, then cached
-		/// until the changed state notification is raised.
-		/// </remarks>
-		/// <returns>The authentication state asynchronous request.</returns>
-		public override async Task<AuthenticationState> GetAuthenticationStateAsync() {
+        /// <summary>
+        /// Get authentication state.
+        /// </summary>
+        public override async Task<AuthenticationState> GetAuthenticationStateAsync() {
+            Console.WriteLine($"[JWT AUTH] GetAuthenticationStateAsync called. Token present: {(_getToken() != null)}");
+            
             _authenticated = false;
-
-            // default to not authenticated
             var user = Unauthenticated;
 
             try {
-                // the user info endpoint is secured, so if the user isn't logged in this will fail
+                // Token is automatically added by JwtTokenHandler
                 var userResponse = await _httpClient.GetAsync("api/accounts/info");
 
-                // throw if user info wasn't retrieved
+                Console.WriteLine($"[JWT AUTH] api/accounts/info response: {userResponse.StatusCode}");
+
                 userResponse.EnsureSuccessStatusCode();
 
-                // user is authenticated,so let's build their authenticated identity
                 var userJson = await userResponse.Content.ReadAsStringAsync();
                 var userInfo = JsonSerializer.Deserialize<UserInfo>(userJson, jsonSerializerOptions);
 
                 if (userInfo != null) {
-                    // in our system name and email are the same
                     if (userInfo.ClientId == null) userInfo.ClientId = 0;
                     if (userInfo.ClientId == 0) userInfo.ClientName = "";
 
                     var claims = new List<Claim>
                     {
                         new(ClaimTypes.Name, userInfo.Email),
-                        new(ClaimTypes.Email, userInfo.Email),
-                        new(ClaimTypes.GivenName, userInfo.GivenName),
-                        new("FamilyName", userInfo.FamilyName),
-                        new ("ClientId", userInfo.ClientId.ToString()),
-                        new ("ClientName", userInfo.ClientName)
+                        new(ClaimTypes.Email, userInfo.Email)
                     };
 
-                    // add any additional claims
+                    if (!string.IsNullOrEmpty(userInfo.GivenName))
+                    {
+                        claims.Add(new Claim(ClaimTypes.GivenName, userInfo.GivenName));
+                        claims.Add(new Claim("FamilyName", userInfo.FamilyName ?? ""));
+                    }
+
+                    claims.Add(new Claim("ClientId", userInfo.ClientId.ToString()));
+                    claims.Add(new Claim("ClientName", userInfo.ClientName ?? ""));
+
                     claims.AddRange(
                         userInfo.Claims.Where(c => c.Key != ClaimTypes.Name && c.Key != ClaimTypes.Email)
                             .Select(c => new Claim(c.Key, c.Value)));
 
-                    // tap the roles endpoint for the user's roles
+                    // Get roles
                     var rolesResponse = await _httpClient.GetAsync("roles");
-
-                    // throw if request fails
                     rolesResponse.EnsureSuccessStatusCode();
 
-                    // read the response into a string
                     var rolesJson = await rolesResponse.Content.ReadAsStringAsync();
-
-                    // deserialize the roles string into an array
                     var roles = JsonSerializer.Deserialize<RoleClaim[]>(rolesJson, jsonSerializerOptions);
 
-                    // if there are roles, add them to the claims collection
                     if (roles?.Length > 0) {
                         foreach (var role in roles) {
                             if (!string.IsNullOrEmpty(role.Type) && !string.IsNullOrEmpty(role.Value)) {
@@ -228,21 +285,26 @@ namespace QBExternalWebLibrary.Services.Authentication {
                         }
                     }
 
-                    // set the principal
                     var id = new ClaimsIdentity(claims, nameof(CookieAuthenticationStateProvider));
                     user = new ClaimsPrincipal(id);
                     _authenticated = true;
+                    Console.WriteLine($"[JWT AUTH] User authenticated successfully: {userInfo.Email}");
                 }
-            } catch { }
+            } catch (Exception ex) { 
+                Console.WriteLine($"[JWT AUTH] Authentication failed: {ex.Message}");
+                _setToken(null);
+            }
 
-            // return the state
             return new AuthenticationState(user);
         }
 
         public async Task LogoutAsync() {
+            _setToken(null);
+
             const string Empty = "{}";
             var emptyContent = new StringContent(Empty, Encoding.UTF8, "application/json");
-            var result = await _httpClient.PostAsync("logout", emptyContent);
+            await _httpClient.PostAsync("logout", emptyContent);
+            
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
 

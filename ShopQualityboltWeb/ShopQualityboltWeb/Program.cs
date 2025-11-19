@@ -8,6 +8,9 @@ using QBExternalWebLibrary.Models.Mapping;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using QBExternalWebLibrary.Services.Model;
 using System.Security.Claims;
@@ -30,7 +33,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(allowedOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader()
-              .AllowCredentials(); // Important for authentication
+              .AllowCredentials() // Important for authentication
+              .WithExposedHeaders("Authorization"); // Allow Authorization header
     });
     
     // Separate policy for development (more permissive)
@@ -54,6 +58,7 @@ builder.Services.AddSession(options =>
 	options.Cookie.HttpOnly = true; // Security
 	options.Cookie.IsEssential = true; // Required for GDPR compliance
 });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<DataContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnectionString")));
@@ -62,6 +67,50 @@ builder.Services.AddIdentityApiEndpoints<ApplicationUser>()
     .AddRoles<IdentityRole>()
     .AddEntityFrameworkStores<DataContext>()
     .AddDefaultTokenProviders();
+
+// Configure JWT Authentication
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
+        ClockSkew = TimeSpan.Zero // Remove default 5 minute clock skew
+    };
+    
+    // For cookie-based authentication fallback
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            // Allow token from Authorization header (default)
+            // Also check for token in cookie for backward compatibility
+            if (context.Request.Cookies.ContainsKey("access_token"))
+            {
+                context.Token = context.Request.Cookies["access_token"];
+            }
+            return Task.CompletedTask;
+        }
+    };
+})
+.AddCookie(options =>
+{
+    options.Cookie.Name = "auth_token";
+    options.LoginPath = "/login";
+    options.Cookie.MaxAge = TimeSpan.FromMinutes(30);
+    options.AccessDeniedPath = "/access-denied";
+    options.Cookie.SameSite = SameSiteMode.Lax; // Cookie auth for non-PunchOut users
+});
 
 builder.Services.AddScoped<IRepository<Coating>, EFRepository<Coating>>();
 builder.Services.AddScoped<IModelService<Coating, Coating?>, ModelService<Coating, Coating?>>();

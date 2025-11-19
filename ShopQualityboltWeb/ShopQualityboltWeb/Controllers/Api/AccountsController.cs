@@ -25,13 +25,21 @@ namespace ShopQualityboltWeb.Controllers.Api {
         private readonly IConfiguration _config;
         private readonly IModelService<Client, ClientEditViewModel> _clientService;
 		private readonly IModelService<PunchOutSession, PunchOutSession> _punchOutSessionService;
+        private readonly ILogger<AccountsController> _logger;
 
-		public AccountsController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, IConfiguration config, IModelService<Client,ClientEditViewModel> clientService, IModelService<PunchOutSession, PunchOutSession> punchOutSessionService) {
+		public AccountsController(
+            UserManager<ApplicationUser> userManager, 
+            SignInManager<ApplicationUser> signInManager, 
+            IConfiguration config, 
+            IModelService<Client,ClientEditViewModel> clientService, 
+            IModelService<PunchOutSession, PunchOutSession> punchOutSessionService,
+            ILogger<AccountsController> logger) {
             _userManager = userManager;
             _signInManager = signInManager;
             _config = config;
             _clientService = clientService;
             _punchOutSessionService = punchOutSessionService;
+            _logger = logger;
         }
 
         [HttpPost("register")]
@@ -79,50 +87,59 @@ namespace ShopQualityboltWeb.Controllers.Api {
         }
 
 		[HttpPost("login/ariba")]
-		public async Task<ActionResult<LoginResponse>> Login([FromBody] string punchOutSessionId, bool useCookies = false)
+		public async Task<ActionResult<LoginResponse>> LoginAriba([FromBody] string punchOutSessionId)
 		{
-			if (!ModelState.IsValid)
-			{
-				return BadRequest(CreateErrorResponse("Validation Error", "Invalid request"));
-			}
+			_logger?.LogInformation("[DEBUG API] LoginAriba: Received request with sessionId: {SessionId}", punchOutSessionId);
+			
+            if (!ModelState.IsValid)
+            {
+				_logger?.LogWarning("[DEBUG API] LoginAriba: ModelState is invalid");
+                return BadRequest(CreateErrorResponse("Validation Error", "Invalid request"));
+            }
 
             var punchOutSession = _punchOutSessionService.Find(a => a.SessionId == punchOutSessionId).FirstOrDefault();
             if(punchOutSession == null)
             {
-				return BadRequest(CreateErrorResponse("Validation Error", "No punch out session could be found for the punchOutSessionId"));
-			}
+				_logger?.LogWarning("[DEBUG API] LoginAriba: PunchOut session not found for sessionId: {SessionId}", punchOutSessionId);
+                return BadRequest(CreateErrorResponse("Validation Error", "No punch out session could be found for the punchOutSessionId"));
+            }
+
+            _logger?.LogInformation("[DEBUG API] LoginAriba: PunchOut session found, UserId: {UserId}, Expires: {ExpirationDateTime}", 
+                punchOutSession.UserId, punchOutSession.ExpirationDateTime);
 
             if (punchOutSession.ExpirationDateTime < DateTime.Now) 
             {
-				return Unauthorized(CreateErrorResponse("Login Failed", "Punch out session expired"));
-			}
+				_logger?.LogWarning("[DEBUG API] LoginAriba: PunchOut session expired");
+                return Unauthorized(CreateErrorResponse("Login Failed", "Punch out session expired"));
+            }
 
             ApplicationUser user = _userManager.Users.FirstOrDefault(a => a.Id == punchOutSession.UserId);
 			if (user == null)
 			{
-				return Unauthorized(CreateErrorResponse("Login Failed", "Could not find user associated with punch out session"));
-			}
+				_logger?.LogWarning("[DEBUG API] LoginAriba: User not found for UserId: {UserId}", punchOutSession.UserId);
+                return Unauthorized(CreateErrorResponse("Login Failed", "Could not find user associated with punch out session"));
+            }
 			
-            await _signInManager.SignInAsync(user, true);
+            _logger?.LogInformation("[DEBUG API] LoginAriba: User found: {Email}, Generating JWT token...", user.Email);
+            
+            // For Ariba PunchOut, return JWT token instead of setting cookie
+            // This works reliably in iframes across all browsers
+            var token = GenerateJwtToken(user);
+            int expiresIn = int.Parse(_config["Jwt:ExpireMinutes"]) * 60;
 
-			if (useCookies)
-			{
-				return Ok(new { message = "Logged in with cookies" });
-			}
-			else
-			{
-				var token = GenerateJwtToken(user);
-				int expiresIn = int.Parse(_config["Jwt:ExpireMinutes"]) * 60;
-				var refreshToken = GenerateRefreshToken();
+            _logger?.LogInformation("[DEBUG API] LoginAriba: Token generated, length: {Length}, expiresIn: {ExpiresIn}s", token.Length, expiresIn);
+            _logger?.LogDebug("[DEBUG API] LoginAriba: Token preview: {TokenPreview}...", token.Substring(0, Math.Min(50, token.Length)));
 
-				return Ok(new LoginResponse
-				{
-					tokenType = "Bearer",
-					accessToken = token,
-					expiresIn = expiresIn,
-					refreshToken = refreshToken
-				});
-			}
+            var response = new LoginResponse
+            {
+                tokenType = "Bearer",
+                accessToken = token,
+                expiresIn = expiresIn,
+                refreshToken = punchOutSessionId // Use session ID as refresh token
+            };
+
+            _logger?.LogInformation("[DEBUG API] LoginAriba: Returning success response");
+            return Ok(response);
 		}
 
 		[HttpPost("login")]
@@ -139,21 +156,21 @@ namespace ShopQualityboltWeb.Controllers.Api {
                 return Unauthorized(CreateErrorResponse("Login Failed", "Invalid email or password."));
             }
 
-            if (useCookies) {
-                await _signInManager.SignInAsync(user, isPersistent: true);
-                return Ok(new { message = "Logged in with cookies" });
-            } else {
-                var token = GenerateJwtToken(user);
-                int expiresIn = int.Parse(_config["Jwt:ExpireMinutes"]) * 60;
-                var refreshToken = GenerateRefreshToken();
+            // Always use JWT tokens now (more secure and consistent)
+            _logger?.LogInformation("[DEBUG API] Regular login for user: {Email}, generating JWT token", user.Email);
+            
+            var token = GenerateJwtToken(user);
+            int expiresIn = int.Parse(_config["Jwt:ExpireMinutes"]) * 60;
+            var refreshToken = GenerateRefreshToken();
 
-                return Ok(new LoginResponse {
-                    tokenType = "Bearer",
-                    accessToken = token,
-                    expiresIn = expiresIn,
-                    refreshToken = refreshToken
-                });
-            }
+            _logger?.LogInformation("[DEBUG API] Token generated for {Email}, length: {Length}", user.Email, token.Length);
+
+            return Ok(new LoginResponse {
+                tokenType = "Bearer",
+                accessToken = token,
+                expiresIn = expiresIn,
+                refreshToken = refreshToken
+            });
         }
 
         [HttpGet("info")]
@@ -209,11 +226,38 @@ namespace ShopQualityboltWeb.Controllers.Api {
         private string GenerateJwtToken(ApplicationUser user) {
             var claims = new List<Claim> {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email),
-                new Claim(JwtRegisteredClaimNames.GivenName, user.GivenName),
-                new Claim(JwtRegisteredClaimNames.FamilyName, user.FamilyName),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+                new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim(ClaimTypes.NameIdentifier, user.Id),
+                new Claim(ClaimTypes.Name, user.Email ?? ""),
+                new Claim(ClaimTypes.Email, user.Email ?? "")
             };
+
+            // Add GivenName and FamilyName if they exist
+            if (!string.IsNullOrEmpty(user.GivenName))
+            {
+                claims.Add(new Claim(JwtRegisteredClaimNames.GivenName, user.GivenName));
+                claims.Add(new Claim(ClaimTypes.GivenName, user.GivenName));
+            }
+
+            if (!string.IsNullOrEmpty(user.FamilyName))
+            {
+                claims.Add(new Claim(JwtRegisteredClaimNames.FamilyName, user.FamilyName));
+                claims.Add(new Claim(ClaimTypes.Surname, user.FamilyName));
+            }
+
+            // Add ClientId if exists
+            if (user.ClientId.HasValue)
+            {
+                claims.Add(new Claim("ClientId", user.ClientId.Value.ToString()));
+            }
+
+            // Add roles - CRITICAL for authorization
+            var roles = _userManager.GetRolesAsync(user).Result;
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

@@ -89,11 +89,21 @@ builder.Services.AddScoped<IAuthenticationApiService, IdentityApiService>();
 builder.Services.AddScoped(sp =>
     new HttpClient { BaseAddress = new Uri(builder.Configuration["FrontendUrl"] ?? apiAddress) });
 
-// configure client for auth interactions
+// Store token accessor for JwtTokenHandler
+string? jwtToken = null;
+Func<string?> getToken = () => jwtToken;
+Action<string?> setToken = (token) => jwtToken = token;
+
+// configure client for auth interactions with JWT token support
 builder.Services.AddHttpClient(
     "Auth",
     opt => opt.BaseAddress = new Uri(builder.Configuration["BackendUrl"] ?? apiAddress))
-    .AddHttpMessageHandler<CookieHandler>();
+    .AddHttpMessageHandler<CookieHandler>()
+    .AddHttpMessageHandler(sp => new QBExternalWebLibrary.Services.Authentication.JwtTokenHandler(getToken));
+
+// Register the token setter so CookieAuthenticationStateProvider can use it
+builder.Services.AddSingleton<Action<string?>>(setToken);
+builder.Services.AddSingleton<Func<string?>>(getToken);
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options => {
