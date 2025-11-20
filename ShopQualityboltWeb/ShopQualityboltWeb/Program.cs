@@ -342,7 +342,8 @@ if (!app.Environment.IsDevelopment()) {
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.MapIdentityApi<ApplicationUser>();
+// Removed: app.MapIdentityApi<ApplicationUser>(); 
+// Using custom JWT endpoints in AccountsController instead (/api/accounts/login, /api/accounts/login/ariba)
 
 app.UseHttpsRedirection();
 app.UseSession();
@@ -382,13 +383,8 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapPost("/logout", async (SignInManager<ApplicationUser> signInManager, [FromBody] object empty) => {
-    if (empty != null) {
-        await signInManager.SignOutAsync();
-        return Results.Ok();
-    }
-    return Results.Unauthorized();
-}).WithOpenApi().RequireAuthorization();
+// Removed: app.MapPost("/logout", ...) 
+// Using api/accounts/logout in AccountsController instead
 
 // Map API controllers only
 app.MapControllers();

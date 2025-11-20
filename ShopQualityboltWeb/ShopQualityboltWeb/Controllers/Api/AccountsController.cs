@@ -366,6 +366,27 @@ namespace ShopQualityboltWeb.Controllers.Api {
 			}
         }
 
+        [HttpPost("logout")]
+        public async Task<ActionResult> Logout()
+        {
+            try
+            {
+                // For JWT, there's no server-side session to clear
+                // The client just needs to discard the token
+                // But we can log the logout for audit purposes
+                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+                
+                _logger.LogInformation("User logged out: {Email}", userEmail ?? "Unknown");
+                
+                return Ok(new { message = "Logged out successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during logout");
+                return StatusCode(500, "An error occurred during logout");
+            }
+        }
 
         private ApiErrorResponse CreateErrorResponse(string title, string detail) {
             return new ApiErrorResponse {

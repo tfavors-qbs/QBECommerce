@@ -311,7 +311,7 @@ namespace QBExternalWebLibrary.Services.Authentication {
 
             const string Empty = "{}";
             var emptyContent = new StringContent(Empty, Encoding.UTF8, "application/json");
-            await _httpClient.PostAsync("logout", emptyContent);
+            await _httpClient.PostAsync("api/accounts/logout", emptyContent);  // Updated to use custom endpoint
             
             NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
