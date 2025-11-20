@@ -52,6 +52,11 @@ namespace QBExternalWebLibrary.Services.Authentication {
             new(new ClaimsIdentity());
 
         /// <summary>
+        /// Track last token to detect automatic refreshes
+        /// </summary>
+        private string? _lastToken;
+
+        /// <summary>
         /// Create a new instance of the auth provider.
         /// </summary>
         /// <param name="httpClientFactory">Factory to retrieve auth client.</param>
@@ -68,6 +73,36 @@ namespace QBExternalWebLibrary.Services.Authentication {
             _getToken = getToken;
             _setToken = setToken;
             _logger = logger;
+            _lastToken = getToken();
+            
+            // Start a background task to monitor token changes
+            _ = MonitorTokenChangesAsync();
+        }
+
+        /// <summary>
+        /// Monitor for token changes and refresh auth state when token is updated
+        /// </summary>
+        private async Task MonitorTokenChangesAsync()
+        {
+            while (true)
+            {
+                try
+                {
+                    await Task.Delay(1000); // Check every second
+                    
+                    var currentToken = _getToken();
+                    if (currentToken != _lastToken && !string.IsNullOrEmpty(currentToken))
+                    {
+                        _logger.LogInformation("Token change detected, refreshing authentication state");
+                        _lastToken = currentToken;
+                        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error monitoring token changes");
+                }
+            }
         }
 
         /// <summary>

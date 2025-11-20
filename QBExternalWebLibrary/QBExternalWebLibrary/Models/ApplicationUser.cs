@@ -14,5 +14,11 @@ namespace QBExternalWebLibrary.Models {
         public Client? Client { get; set; }
         public bool IsDisabled { get; set; }
         public string? AribaId { get; set; }
+        
+        /// <summary>
+        /// Timestamp when user profile was last modified. Used to detect stale JWT claims.
+        /// Updated automatically when ClientId, Roles, or profile information changes.
+        /// </summary>
+        public DateTime LastModified { get; set; } = DateTime.UtcNow;
     }
 }

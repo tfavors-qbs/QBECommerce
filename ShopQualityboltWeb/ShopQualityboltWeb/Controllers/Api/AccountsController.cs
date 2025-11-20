@@ -406,7 +406,9 @@ namespace ShopQualityboltWeb.Controllers.Api {
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim(ClaimTypes.NameIdentifier, user.Id),
                 new Claim(ClaimTypes.Name, user.Email ?? ""),
-                new Claim(ClaimTypes.Email, user.Email ?? "")
+                new Claim(ClaimTypes.Email, user.Email ?? ""),
+                // Track when user was last modified to detect stale claims
+                new Claim("UserModifiedAt", user.LastModified.ToString("O")) // ISO 8601 format
             };
 
             // Add GivenName and FamilyName if they exist
@@ -422,10 +424,17 @@ namespace ShopQualityboltWeb.Controllers.Api {
                 claims.Add(new Claim(ClaimTypes.Surname, user.FamilyName));
             }
 
-            // Add ClientId if exists
+            // Add ClientId and ClientName if exists
             if (user.ClientId.HasValue)
             {
                 claims.Add(new Claim("ClientId", user.ClientId.Value.ToString()));
+                
+                // Fetch client name for display purposes
+                var client = _clientService.GetById(user.ClientId.Value);
+                if (client != null && !string.IsNullOrEmpty(client.Name))
+                {
+                    claims.Add(new Claim("ClientName", client.Name));
+                }
             }
 
             // Add roles - CRITICAL for authorization

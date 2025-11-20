@@ -9,6 +9,15 @@ namespace ShopQualityboltWebBlazor.Services
 	{
 		public ShoppingCartPageEVM UsersShoppingCartEVM { get => field; set { field = value; UsersShoppingCartEVMChanged?.Invoke(value); } }
 		public Action<ShoppingCartPageEVM> UsersShoppingCartEVMChanged { get; set; }
+		
+		/// <summary>
+		/// Clear the cached shopping cart data. Called on user logout to prevent cart data leakage between users.
+		/// </summary>
+		public void ClearCache()
+		{
+			UsersShoppingCartEVM = null;
+		}
+		
 		public async Task<ShoppingCartPageEVM> RefreshUserShoppingCart()
 		{
 			return UsersShoppingCartEVM = await _shoppingCartPageService.GetPageAsync();

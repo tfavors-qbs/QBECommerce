@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.OpenApi;
 using QBExternalWebLibrary.Models.Catalog;
 using QBExternalWebLibrary.Models.Ariba;
 using ShopQualityboltWeb.Services;
+using ShopQualityboltWeb.Middleware; // Add this
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,7 +36,7 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials() // Important for authentication
-              .WithExposedHeaders("Authorization", "Token-Expired"); // Expose headers
+              .WithExposedHeaders("Authorization", "Token-Expired", "X-Token-Refresh", "X-Token-Refreshed"); // Expose headers
     });
     
     // Separate policy for development (more permissive but still secure)
@@ -58,7 +59,7 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials()
-              .WithExposedHeaders("Authorization", "Token-Expired");
+              .WithExposedHeaders("Authorization", "Token-Expired", "X-Token-Refresh", "X-Token-Refreshed");
     });
 });
 
@@ -381,6 +382,7 @@ app.MapGet("/roles", (ClaimsPrincipal user) => {
 app.UseRouting();
 
 app.UseAuthentication();
+app.UseStaleClaimsDetection(); // Add stale claims detection middleware
 app.UseAuthorization();
 
 // Removed: app.MapPost("/logout", ...) 

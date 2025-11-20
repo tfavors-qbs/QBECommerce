@@ -5,7 +5,8 @@
 @using ShopQualityboltWebBlazor.Components.Pages
 @using ShopQualityboltWebBlazor.Services
 @inject IAccountManagement Acct
-@inject PunchOutManagementService punchOutManagementService;
+@inject PunchOutManagementService punchOutManagementService
+@inject ShoppingCartManagementService ShoppingCartManagementService
 
 <MudPopoverProvider />
 <MudDialogProvider />
@@ -84,6 +85,8 @@
         if (await Acct.CheckAuthenticatedAsync())
         {
             await Acct.LogoutAsync();
+            // Clear the shopping cart cache to prevent cart data from persisting between user sessions
+            ShoppingCartManagementService.ClearCache();
         }
         StateHasChanged();
     }

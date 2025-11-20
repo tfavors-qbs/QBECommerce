@@ -289,6 +289,9 @@ namespace ShopQualityboltWeb.Controllers.Api
 				user.AribaId = request.AribaId;
 				user.ClientId = request.ClientId;
 				user.IsDisabled = request.IsDisabled;
+				
+				// IMPORTANT: Touch LastModified to invalidate stale JWT tokens
+				user.LastModified = DateTime.UtcNow;
 
 				var result = await _userManager.UpdateAsync(user);
 
