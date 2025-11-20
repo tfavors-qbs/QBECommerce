@@ -35,6 +35,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 		private readonly IModelService<QBExternalWebLibrary.Models.ContractItem, ContractItemEditViewModel> _contractItemService;
 		private readonly UserManager<ApplicationUser> _userManager;
 		private readonly IModelService<ShoppingCart, ShoppingCartEVM> _shoppingCartService;
+		private readonly IModelService<ShoppingCartItem, ShoppingCartItemEVM?> _shoppingcartItemService;
 		private readonly IErrorLogService _errorLogService;
 		private readonly ILogger<PunchOutSessionsController> _logger;
 
@@ -44,6 +45,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 			UserManager<ApplicationUser> userManager, 
 			IModelService<QBExternalWebLibrary.Models.ContractItem, ContractItemEditViewModel> contractItemService, 
 			IModelService<ShoppingCart, ShoppingCartEVM> shoppingCartService,
+			IModelService<ShoppingCartItem, ShoppingCartItemEVM?> shoppingcartItemService,
 			IErrorLogService errorLogService,
 			ILogger<PunchOutSessionsController> logger)
 		{
@@ -52,6 +54,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 			_userManager = userManager;
 			_contractItemService = contractItemService;
 			_shoppingCartService = shoppingCartService;
+			_shoppingcartItemService = shoppingcartItemService;
 			_errorLogService = errorLogService;
 			_logger = logger;
 		}
@@ -292,7 +295,6 @@ namespace ShopQualityboltWeb.Controllers.Api
 						additionalData: new { email },
 						requestUrl: HttpContext.Request.Path,
 						httpMethod: HttpContext.Request.Method,
-						userEmail: email,
 						statusCode: 400);
 					return BadRequest(CreateErrorResponse("400", "No user could be found for the given email"));
 				}
@@ -315,7 +317,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 				
 				if(punchOutSetupRequest.operation == PunchOutSetupRequestOperation.edit || punchOutSetupRequest.operation == PunchOutSetupRequestOperation.inspect)
 				{
-					var usersShoppingCart = _shoppingCartService.Find(a => a.ApplicationUserId == user.Id).FirstOrDefault();
+					var usersShoppingCart = _shoppingCartService.FindInclude(a => a.ApplicationUserId == user.Id, b => b.ShoppingCartItems).FirstOrDefault();
 					if(usersShoppingCart == null)
 					{
 						await _errorLogService.LogErrorAsync(
@@ -331,35 +333,200 @@ namespace ShopQualityboltWeb.Controllers.Api
 						return Unauthorized(CreateErrorResponse("401", "Could not find user's shopping cart to edit"));
 					}
 
-					List<ShoppingCartItemEVM> existingItems = new();
-					for (int i = 0; i < punchOutSetupRequest.ItemOut.Length; i++)
+					_logger.LogInformation("Processing {Operation} operation with {ItemCount} items for user {Email}", 
+						punchOutSetupRequest.operation, punchOutSetupRequest.ItemOut?.Length ?? 0, user.Email);
+
+					// Build list of items to add to cart
+					List<ShoppingCartItem> itemsToAdd = new();
+					int itemsSkipped = 0;
+					int itemsPriceChanged = 0;
+
+					if (punchOutSetupRequest.ItemOut != null && punchOutSetupRequest.ItemOut.Length > 0)
 					{
-						ItemOut item = punchOutSetupRequest.ItemOut[i];
-						if(item.ItemID != null)
+						// Get all user's contract items for efficient lookup
+						var userContractItems = _contractItemService.Find(c => c.ClientId == user.ClientId).ToList();
+						
+						_logger.LogInformation("Found {Count} contract items for client {ClientId}", 
+							userContractItems.Count, user.ClientId);
+						
+						foreach (ItemOut itemOut in punchOutSetupRequest.ItemOut)
 						{
-							SupplierPartAuxiliaryID supplierPartAuxiliaryID = item.ItemID.SupplierPartAuxiliaryID;
-							string contractItemId = supplierPartAuxiliaryID?.Any?.FirstOrDefault()?.Value;
-							if (!string.IsNullOrEmpty(contractItemId))
+							try
 							{
-								if(!int.TryParse(contractItemId, out int contractItemIdInt))
+								_logger.LogDebug("Processing ItemOut: SupplierPartID={SupplierPartID}, SupplierPartAuxiliaryID={AuxId}, Quantity={Quantity}",
+									itemOut.ItemID?.SupplierPartID ?? "null",
+									itemOut.ItemID?.SupplierPartAuxiliaryID?.Any?.FirstOrDefault()?.Value ?? "null",
+									itemOut.quantity ?? "null");
+
+								// Extract quantity - handle decimal values from Ariba (e.g., "1.00")  
+								if (!decimal.TryParse(itemOut.quantity, out decimal qtyDecimal) || qtyDecimal <= 0)
 								{
-									if (!int.TryParse(item.quantity, out int qty))
+									_logger.LogWarning("Skipping item with invalid quantity: {Quantity}", itemOut.quantity);
+									itemsSkipped++;
+									continue;
+								}
+
+								// Extract SupplierPartID (Customer Stock Number) - this is our primary lookup
+								string customerStkNo = itemOut.ItemID?.SupplierPartID;
+								
+								if (string.IsNullOrEmpty(customerStkNo))
+								{
+									_logger.LogWarning("Skipping item with missing SupplierPartID (Customer Stock Number)");
+									itemsSkipped++;
+									continue;
+								}
+
+								// Look up item by Customer Stock Number (NOT by internal ID or cXML price)
+								var contractItem = userContractItems.FirstOrDefault(c => 
+									c.CustomerStkNo.Equals(customerStkNo, StringComparison.OrdinalIgnoreCase));
+
+								if (contractItem == null)
+								{
+									// Log available stock numbers for debugging
+									var availableStockNumbers = string.Join(", ", userContractItems.Take(10).Select(c => c.CustomerStkNo));
+									_logger.LogWarning(
+										"Skipping item with Customer Stock Number '{CustomerStkNo}' - not found in user's contract items. " +
+										"Client ID: {ClientId}, Total items: {TotalItems}, Sample stock numbers: {SampleStockNumbers}",
+										customerStkNo, user.ClientId, userContractItems.Count, availableStockNumbers);
+									
+									// Log to error system for system maintenance visibility
+									await _errorLogService.LogErrorAsync(
+										"PunchOut Edit - Item Not Found",
+										"Contract Item Lookup Failed",
+										$"Customer Stock Number '{customerStkNo}' from cXML not found in user's contract items",
+										additionalData: new { 
+											customerStkNo,
+											clientId = user.ClientId,
+											totalAvailableItems = userContractItems.Count,
+											sampleStockNumbers = availableStockNumbers,
+											aribaSupplierPartAuxiliaryID = itemOut.ItemID?.SupplierPartAuxiliaryID?.Any?.FirstOrDefault()?.Value,
+											operation = "edit"
+										},
+										userId: user.Id,
+										userEmail: user.Email,
+										requestUrl: HttpContext.Request.Path,
+										httpMethod: HttpContext.Request.Method);
+									
+									itemsSkipped++;
+									continue;
+								}
+
+								// Compare cXML price with our price (for logging/tracking purposes only)
+								if (itemOut.ItemDetail?.UnitPrice?.Money?.Value != null)
+								{
+									if (decimal.TryParse(itemOut.ItemDetail.UnitPrice.Money.Value, out decimal cxmlPrice))
 									{
-										//REFACTOR: instead of getting 1 by 1 inside foreach, pool them up and get all at once after foreach loop
-										QBExternalWebLibrary.Models.ContractItem contractItem = _contractItemService.GetById(contractItemIdInt);
-										if(contractItem != null)
+										if (Math.Abs(cxmlPrice - contractItem.Price) > 0.01m) // Allow 1 cent tolerance
 										{
-											existingItems.Add(new() { ContractItemId = contractItemIdInt, Quantity = qty, ShoppingCartId = usersShoppingCart.Id });
+											_logger.LogInformation(
+												"Price difference detected for {CustomerStkNo}: cXML=${CxmlPrice}, Our Price=${OurPrice}. Using our price.",
+												customerStkNo, cxmlPrice, contractItem.Price);
+											itemsPriceChanged++;
 										}
 									}
 								}
+
+								// Create cart item with OUR pricing (not cXML pricing)
+								itemsToAdd.Add(new ShoppingCartItem
+								{
+									ShoppingCartId = usersShoppingCart.Id,
+									ContractItemId = contractItem.Id,
+									Quantity = (int)qtyDecimal // <-- Use qtyDecimal, cast to int
+								});
+
+								_logger.LogInformation("Successfully added item {CustomerStkNo} (ID: {ContractItemId}) with qty {Quantity} @ ${Price}",
+									customerStkNo, contractItem.Id, (int)qtyDecimal, contractItem.Price);
+							}
+							catch (Exception itemEx)
+							{
+								_logger.LogError(itemEx, "Error processing ItemOut entry: {Error}", itemEx.Message);
+								itemsSkipped++;
 							}
 						}
 					}
-
-					if (existingItems.Count > 0)
+					else
 					{
-						//TODO: clear the cart, then add existingItems to cart
+						_logger.LogWarning("No ItemOut entries in edit request for user {Email}", user.Email);
+					}
+
+					_logger.LogInformation("Edit operation processing complete: {ItemsToAdd} items to add, {ItemsSkipped} items skipped", 
+						itemsToAdd.Count, itemsSkipped);
+
+					// Clear the cart and add validated items
+					if (itemsToAdd.Count > 0)
+					{
+						try
+						{
+							// Clear existing cart items
+							if (usersShoppingCart.ShoppingCartItems != null && usersShoppingCart.ShoppingCartItems.Any())
+							{
+								_shoppingcartItemService.DeleteRange(usersShoppingCart.ShoppingCartItems);
+								_logger.LogInformation("Cleared {Count} existing items from cart", usersShoppingCart.ShoppingCartItems.Count);
+							}
+
+							// Add new items to cart
+							foreach (var item in itemsToAdd)
+							{
+								_shoppingcartItemService.Create(item);
+							}
+
+							_logger.LogInformation(
+								"Edit operation completed: Added {AddedCount} items, Skipped {SkippedCount} items, Price adjustments {PriceChanges} for user {Email}",
+								itemsToAdd.Count, itemsSkipped, itemsPriceChanged, user.Email);
+						}
+						catch (Exception cartEx)
+						{
+							await _errorLogService.LogErrorAsync(
+								"PunchOut Setup Error",
+								"Failed to Update Cart",
+								"Error clearing and refilling cart during edit operation",
+								cartEx,
+								additionalData: new { 
+									operation = punchOutSetupRequest.operation.ToString(), 
+									userId = user.Id,
+									itemsToAddCount = itemsToAdd.Count,
+									itemsSkipped = itemsSkipped
+								},
+								userId: user.Id,
+								userEmail: user.Email,
+								requestUrl: HttpContext.Request.Path,
+								httpMethod: HttpContext.Request.Method,
+								statusCode: 500);
+							return StatusCode(500, CreateErrorResponse("500", $"Failed to update shopping cart: {cartEx.Message}"));
+						}
+					}
+					else
+					{
+						// No valid items to add - this may indicate a system configuration issue
+						if (itemsSkipped > 0)
+						{
+							_logger.LogWarning("All {SkippedCount} items were skipped during edit operation for user {Email}", itemsSkipped, user.Email);
+							
+							// Log to error system - this likely needs system maintenance attention
+							await _errorLogService.LogErrorAsync(
+								"PunchOut Edit - All Items Skipped",
+								"No Valid Items Found",
+								$"All {itemsSkipped} items from cXML were skipped - no valid items could be added to cart",
+								additionalData: new { 
+									operation = punchOutSetupRequest.operation.ToString(),
+									userId = user.Id,
+									clientId = user.ClientId,
+									itemsSkipped = itemsSkipped,
+									itemOutCount = punchOutSetupRequest.ItemOut?.Length ?? 0,
+									availableContractItems = _contractItemService.Find(c => c.ClientId == user.ClientId).Count()
+								},
+								userId: user.Id,
+								userEmail: user.Email,
+								requestUrl: HttpContext.Request.Path,
+								httpMethod: HttpContext.Request.Method);
+						}
+						
+						// Clear the cart anyway
+						if (usersShoppingCart.ShoppingCartItems != null && usersShoppingCart.ShoppingCartItems.Any())
+						{
+							_shoppingcartItemService.DeleteRange(usersShoppingCart.ShoppingCartItems);
+							_logger.LogInformation("Cleared cart with no valid items to replace for user {Email}", user.Email);
+						}
 					}
 				}
 
