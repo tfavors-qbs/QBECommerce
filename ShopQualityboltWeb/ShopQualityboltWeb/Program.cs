@@ -29,21 +29,36 @@ builder.Services.AddCors(options =>
     {
         // Get allowed origins from configuration
         var allowedOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>() 
-            ?? new[] { "https://localhost:44318", "http://localhost:5000" }; // Default for development
+            ?? new[] { "https://localhost:44318", "http://localhost:5000", "https://localhost:7169" }; // Added common Blazor port
         
         policy.WithOrigins(allowedOrigins)
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials() // Important for authentication
-              .WithExposedHeaders("Authorization"); // Allow Authorization header
+              .WithExposedHeaders("Authorization", "Token-Expired"); // Expose headers
     });
     
-    // Separate policy for development (more permissive)
+    // Separate policy for development (more permissive but still secure)
     options.AddPolicy("DevelopmentCors", policy =>
     {
-        policy.AllowAnyOrigin()
+        // Cannot use AllowAnyOrigin() with AllowCredentials()
+        // Must specify origins explicitly
+        var devOrigins = new[] 
+        { 
+            "https://localhost:7169",  // Common Blazor Server port
+            "https://localhost:5001",
+            "https://localhost:5000",
+            "http://localhost:5000",
+            "https://localhost:44318",
+            "https://localhost:7237",  // API port
+            "http://localhost:7237"
+        };
+        
+        policy.WithOrigins(devOrigins)
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials()
+              .WithExposedHeaders("Authorization", "Token-Expired");
     });
 });
 
@@ -86,7 +101,7 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"])),
-        ClockSkew = TimeSpan.Zero // Remove default 5 minute clock skew
+        ClockSkew = TimeSpan.FromMinutes(5) // Add 5 minute tolerance for clock skew
     };
     
     // For cookie-based authentication fallback
@@ -100,6 +115,81 @@ builder.Services.AddAuthentication(options =>
             {
                 context.Token = context.Request.Cookies["access_token"];
             }
+            return Task.CompletedTask;
+        },
+        OnAuthenticationFailed = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            
+            // Comprehensive logging for authentication failures
+            logger.LogWarning("=== JWT AUTHENTICATION FAILED ===");
+            logger.LogWarning("Exception Type: {Type}", context.Exception.GetType().FullName);
+            logger.LogWarning("Exception Message: {Message}", context.Exception.Message);
+            logger.LogWarning("Request Path: {Path}", context.HttpContext.Request.Path);
+            logger.LogWarning("Request Method: {Method}", context.HttpContext.Request.Method);
+            logger.LogWarning("Remote IP: {IP}", context.HttpContext.Connection.RemoteIpAddress?.ToString());
+            
+            // Log Authorization header (first 50 chars for security)
+            if (context.HttpContext.Request.Headers.ContainsKey("Authorization"))
+            {
+                var authHeader = context.HttpContext.Request.Headers["Authorization"].ToString();
+                logger.LogWarning("Authorization Header Length: {Length}", authHeader.Length);
+                logger.LogWarning("Authorization Header Preview: {Preview}", 
+                    authHeader.Length > 50 ? authHeader.Substring(0, 50) + "..." : authHeader);
+            }
+            else
+            {
+                logger.LogWarning("Authorization Header: MISSING");
+            }
+            
+            if (context.Exception is SecurityTokenExpiredException expiredException)
+            {
+                context.Response.Headers.Add("Token-Expired", "true");
+                logger.LogWarning("Token EXPIRED at: {ExpiredAt}", expiredException.Expires);
+                logger.LogWarning("Current Time: {Now}", DateTime.UtcNow);
+                logger.LogWarning("Time Difference: {Diff} minutes", (DateTime.UtcNow - expiredException.Expires).TotalMinutes);
+            }
+            else if (context.Exception is SecurityTokenInvalidSignatureException)
+            {
+                logger.LogWarning("Token has INVALID SIGNATURE - possible key mismatch");
+            }
+            else if (context.Exception is SecurityTokenInvalidIssuerException)
+            {
+                logger.LogWarning("Token has INVALID ISSUER");
+            }
+            else if (context.Exception is SecurityTokenInvalidAudienceException)
+            {
+                logger.LogWarning("Token has INVALID AUDIENCE");
+            }
+            else if (context.Exception is SecurityTokenMalformedException)
+            {
+                logger.LogWarning("Token is MALFORMED - not a valid JWT format");
+            }
+            
+            logger.LogWarning("=== END AUTHENTICATION FAILURE INFO ===");
+            
+            return Task.CompletedTask;
+        },
+        OnChallenge = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("=== JWT AUTHENTICATION CHALLENGE ===");
+            logger.LogWarning("Challenge Error: {Error}", context.Error ?? "NULL");
+            logger.LogWarning("Challenge ErrorDescription: {Desc}", context.ErrorDescription ?? "NULL");
+            logger.LogWarning("Challenge ErrorUri: {Uri}", context.ErrorUri ?? "NULL");
+            logger.LogWarning("Is Authenticated: {IsAuth}", context.HttpContext.User.Identity?.IsAuthenticated ?? false);
+            logger.LogWarning("Request Path: {Path}", context.HttpContext.Request.Path);
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("=== JWT TOKEN VALIDATED SUCCESSFULLY ===");
+            logger.LogInformation("User: {User}", context.Principal?.Identity?.Name ?? "NULL");
+            
+            var roles = context.Principal?.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList() ?? new List<string>();
+            logger.LogInformation("Roles: {Roles}", roles.Any() ? string.Join(", ", roles) : "NONE");
+            
             return Task.CompletedTask;
         }
     };

@@ -6,6 +6,8 @@ using QBExternalWebLibrary.Models;
 using QBExternalWebLibrary.Models.Products;
 using System.ComponentModel.DataAnnotations;
 using ThreadModel = QBExternalWebLibrary.Models.Products.Thread;
+using ShopQualityboltWeb.Services;
+using System.Security.Claims;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -16,104 +18,187 @@ namespace ShopQualityboltWeb.Controllers.Api
     {
         private readonly DataContext _context;
         private readonly ILogger<ClientImportController> _logger;
+        private readonly IErrorLogService _errorLogService;
 
-        public ClientImportController(DataContext context, ILogger<ClientImportController> logger)
+        public ClientImportController(DataContext context, ILogger<ClientImportController> logger, IErrorLogService errorLogService)
         {
             _context = context;
             _logger = logger;
+            _errorLogService = errorLogService;
         }
 
         [HttpPost]
         public async Task<ActionResult<ClientImportResponse>> ImportClientWithContractItems([FromBody] ClientImportRequest request)
         {
-            if (!ModelState.IsValid)
-            {
-                return BadRequest(ModelState);
-            }
-
-            var response = new ClientImportResponse
-            {
-                ClientName = request.Client.Name,
-                StartTime = DateTime.UtcNow
-            };
-
-            using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Step 1: Create or update Client
-                var client = await GetOrCreateClient(request.Client);
-                response.ClientId = client.Id;
-                response.IsNewClient = client.Id == 0 || !await _context.Clients.AnyAsync(c => c.Id == client.Id);
+                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
 
-                if (response.IsNewClient)
+                if (!ModelState.IsValid)
                 {
-                    _context.Clients.Add(client);
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Created new client: {ClientName} with ID: {ClientId}", client.Name, client.Id);
-                }
-                else
-                {
-                    _logger.LogInformation("Using existing client: {ClientName} with ID: {ClientId}", client.Name, client.Id);
+                    return BadRequest(ModelState);
                 }
 
-                // Step 2: Process each contract item
-                foreach (var contractItemDto in request.ContractItems)
+                var response = new ClientImportResponse
                 {
-                    try
+                    ClientName = request.Client.Name,
+                    StartTime = DateTime.UtcNow
+                };
+
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    // Step 1: Create or update Client
+                    var client = await GetOrCreateClient(request.Client);
+                    response.ClientId = client.Id;
+                    response.IsNewClient = client.Id == 0 || !await _context.Clients.AnyAsync(c => c.Id == client.Id);
+
+                    if (response.IsNewClient)
                     {
-                        // Check if contract item already exists
-                        var existingItem = await _context.ContractItems
-                            .FirstOrDefaultAsync(ci => ci.CustomerStkNo == contractItemDto.CustomerStkNo && ci.ClientId == client.Id);
+                        _context.Clients.Add(client);
+                        await _context.SaveChangesAsync();
+                        _logger.LogInformation("Created new client: {ClientName} with ID: {ClientId}", client.Name, client.Id);
+                    }
 
-                        if (existingItem != null)
+                    // Step 2: Process each contract item
+                    foreach (var contractItemDto in request.ContractItems)
+                    {
+                        try
                         {
-                            response.SkippedItems.Add(new ImportError
+                            // Check if contract item already exists
+                            var existingItem = await _context.ContractItems
+                                .FirstOrDefaultAsync(ci => ci.CustomerStkNo == contractItemDto.CustomerStkNo && ci.ClientId == client.Id);
+
+                            if (existingItem != null)
+                            {
+                                response.SkippedItems.Add(new ImportError
+                                {
+                                    CustomerStkNo = contractItemDto.CustomerStkNo,
+                                    Reason = "Contract item already exists"
+                                });
+                                continue;
+                            }
+
+                            // Process dependencies and create contract item
+                            var contractItem = await CreateContractItem(contractItemDto, client.Id);
+
+                            if (contractItem != null)
+                            {
+                                _context.ContractItems.Add(contractItem);
+                                response.ImportedItemsCount++;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to process contract item: {CustomerStkNo}", contractItemDto.CustomerStkNo);
+                            response.FailedItems.Add(new ImportError
                             {
                                 CustomerStkNo = contractItemDto.CustomerStkNo,
-                                Reason = "Contract item already exists"
+                                Reason = ex.Message
                             });
-                            continue;
-                        }
-
-                        // Process dependencies and create contract item
-                        var contractItem = await CreateContractItem(contractItemDto, client.Id);
-
-                        if (contractItem != null)
-                        {
-                            _context.ContractItems.Add(contractItem);
-                            response.ImportedItemsCount++;
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        response.FailedItems.Add(new ImportError
-                        {
-                            CustomerStkNo = contractItemDto.CustomerStkNo,
-                            Reason = ex.Message
-                        });
-                        _logger.LogError(ex, "Failed to import contract item: {CustomerStkNo}", contractItemDto.CustomerStkNo);
-                    }
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    response.Success = true;
+                    response.EndTime = DateTime.UtcNow;
+                    response.Message = $"Successfully imported {response.ImportedItemsCount} contract items. Skipped: {response.SkippedItems.Count}, Failed: {response.FailedItems.Count}";
+
+                    _logger.LogInformation("Client import completed. Imported: {Imported}, Skipped: {Skipped}, Failed: {Failed}", 
+                        response.ImportedItemsCount, response.SkippedItems.Count, response.FailedItems.Count);
+                    
+                    return Ok(response);
                 }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Transaction rolled back during client import");
+                    
+                    await _errorLogService.LogErrorAsync(
+                        "Client Import Error",
+                        "Failed to Import Client and Contract Items",
+                        ex.Message,
+                        ex,
+                        additionalData: new { 
+                            clientName = request.Client?.Name,
+                            clientLegacyId = request.Client?.LegacyId,
+                            contractItemCount = request.ContractItems?.Count 
+                        },
+                        userId: userId,
+                        userEmail: userEmail,
+                        requestUrl: HttpContext.Request.Path,
+                        httpMethod: HttpContext.Request.Method);
+                    
+                    response.Success = false;
+                    response.EndTime = DateTime.UtcNow;
+                    response.Message = $"Import failed: {ex.Message}";
+                    
+                    return StatusCode(500, response);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error in client import");
+                
+                await _errorLogService.LogErrorAsync(
+                    "Client Import Error",
+                    "Unexpected Error in Client Import",
+                    ex.Message,
+                    ex,
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
+                
+                return StatusCode(500, new ClientImportResponse
+                {
+                    Success = false,
+                    Message = $"Unexpected error: {ex.Message}",
+                    EndTime = DateTime.UtcNow
+                });
+            }
+        }
 
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
+        /// <summary>
+        /// Test endpoint to verify authentication and authorization
+        /// </summary>
+        [HttpGet("auth-test")]
+        public ActionResult<object> TestAuthentication()
+        {
+            try
+            {
+                var isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+                var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
+                var userName = User.Identity?.Name;
+                var userRoles = User.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+                var allClaims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
 
-                response.Success = true;
-                response.EndTime = DateTime.UtcNow;
-                response.Message = $"Successfully imported {response.ImportedItemsCount} contract items. Skipped: {response.SkippedItems.Count}, Failed: {response.FailedItems.Count}";
+                var response = new
+                {
+                    isAuthenticated,
+                    userId,
+                    userEmail,
+                    userName,
+                    roles = userRoles,
+                    hasAdminRole = User.IsInRole("Admin"),
+                    allClaims,
+                    authorizationHeader = Request.Headers["Authorization"].ToString(),
+                    cookieHeader = Request.Headers["Cookie"].ToString()
+                };
+
+                _logger.LogInformation("Auth test: Authenticated={IsAuth}, Email={Email}, Roles={Roles}", 
+                    isAuthenticated, userEmail, string.Join(", ", userRoles));
 
                 return Ok(response);
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "Failed to import client and contract items");
-                
-                response.Success = false;
-                response.EndTime = DateTime.UtcNow;
-                response.Message = $"Import failed: {ex.Message}";
-                
-                return StatusCode(500, response);
+                _logger.LogError(ex, "Error in auth test endpoint");
+                return StatusCode(500, new { error = ex.Message });
             }
         }
 
