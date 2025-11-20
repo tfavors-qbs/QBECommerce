@@ -299,7 +299,7 @@
             }
             debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] All items validated successfully");
 
-            // Step 6: Generate cXML order message
+            // Step 6: Generate cXML order message (BEFORE clearing cart)
             debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Generating cXML order message...");
             string orderMessage = ShoppingCart.GeneratePunchOutOrderMessage(usersCartItems, session);
             
@@ -314,11 +314,26 @@
                 return;
             }
             
-            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Order message generated");
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Order message generated successfully");
+            
+            // Step 7: Clear the cart (AFTER cXML generation, BEFORE Ariba submission)
+            // This ensures the cart data is captured in the cXML but the cart is empty when Ariba takes over
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Clearing cart before Ariba submission...");
+            try
+            {
+                await ShoppingCartManagementService.ClearItemsAsync();
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Cart cleared successfully");
+            }
+            catch (Exception clearEx)
+            {
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] WARNING: Failed to clear cart: {clearEx.Message}");
+                // Continue with checkout even if cart clearing fails
+                // The error is captured in debugInfo and will be logged if needed
+            }
             
             // Note: Debug console logging removed - errors are logged to database for admin review
 
-            // Step 7: POST to Ariba
+            // Step 8: POST to Ariba (optional validation step)
             string postUrl = session.PostUrl;
             debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Posting order to Ariba...");
             debugInfo.Add($"  - POST URL: {postUrl}");
@@ -364,12 +379,13 @@
                 
                 debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Checkout completed successfully!");
                 
-                // Submit cXML via HTML form - this is how PunchOut protocol works
+                // Step 9: Submit cXML via HTML form - this is how PunchOut protocol works
                 debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Submitting HTML form with cXML to Ariba...");
                 await JSRuntime.InvokeVoidAsync("submitPunchOutForm", postUrl, orderMessage);
                 
                 // Note: The form submission will cause the iframe to navigate/close
                 // Ariba handles the rest from here
+                // The cart has already been cleared at this point
             }
             catch (HttpRequestException httpEx)
             {
