@@ -14,6 +14,8 @@ using QBExternalWebLibrary.Models.Catalog;
 using QBExternalWebLibrary.Models.Ariba;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using QBExternalWebLibrary.Services; // Added this line
+using QBExternalWebLibrary.Services.Authentication; // Added this line
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,10 +60,33 @@ builder.Services.Configure<Microsoft.AspNetCore.SignalR.HubOptions>(options =>
 });
 
 builder.Services.AddMudServices();
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiAddress) });
+
+// Register circuit tracking for token management
+builder.Services.AddSingleton<CircuitIdAccessor>();
+builder.Services.AddScoped<CircuitHandler, TrackingCircuitHandler>();
 
 // Register Circuit Handler for better connection management
 builder.Services.AddScoped<CircuitHandler, CircuitHandlerService>();
+
+// Register TokenService for proper per-user token management
+builder.Services.AddSingleton<ITokenService, TokenService>();
+
+// Register JwtTokenHandler and CookieHandler as scoped services
+builder.Services.AddScoped<JwtTokenHandler>();
+builder.Services.AddTransient<CookieHandler>();
+
+// ? Configure SINGLE HttpClient with JWT token support
+// Named "Auth" for compatibility with existing services
+builder.Services.AddHttpClient("Auth", client =>
+{
+    client.BaseAddress = new Uri(apiAddress);
+})
+.AddHttpMessageHandler<CookieHandler>()
+.AddHttpMessageHandler<JwtTokenHandler>();
+
+// ? Register default HttpClient that uses "Auth" configuration
+// This makes @inject HttpClient use the same client as services
+builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("Auth"));
 
 builder.Services.AddScoped<IApiService<SKU, SKUEditViewModel>, ApiService<SKU, SKUEditViewModel>>();
 builder.Services.AddScoped<IApiService<Length, Length>, ApiService<Length, Length>>();
@@ -79,35 +104,11 @@ builder.Services.AddScoped<ShoppingCartItemApiService>();
 builder.Services.AddScoped<PunchOutSessionApiService>();
 builder.Services.AddScoped<IUserApiService, UserApiService>();
 builder.Services.AddScoped<LocalStorageService>();
-builder.Services.AddTransient<CookieHandler>();
 builder.Services.AddScoped<ShoppingCartPageApiService>(); // Changed from Singleton
 builder.Services.AddScoped<ShoppingCartManagementService>(); // Changed from Singleton
 builder.Services.AddScoped<PunchOutManagementService>(); // Changed from Singleton
 //builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IAuthenticationApiService, IdentityApiService>();
-
-builder.Services.AddScoped(sp =>
-    new HttpClient { BaseAddress = new Uri(builder.Configuration["FrontendUrl"] ?? apiAddress) });
-
-// Store token accessor for JwtTokenHandler
-string? jwtToken = null;
-Func<string?> getToken = () => jwtToken;
-Action<string?> setToken = (token) => jwtToken = token;
-
-// configure client for auth interactions with JWT token support
-builder.Services.AddHttpClient(
-    "Auth",
-    opt => opt.BaseAddress = new Uri(builder.Configuration["BackendUrl"] ?? apiAddress))
-    .AddHttpMessageHandler<CookieHandler>()
-    .AddHttpMessageHandler(sp => 
-    {
-        var logger = sp.GetService<ILogger<QBExternalWebLibrary.Services.Authentication.JwtTokenHandler>>();
-        return new QBExternalWebLibrary.Services.Authentication.JwtTokenHandler(getToken, logger);
-    });
-
-// Register the token setter so CookieAuthenticationStateProvider can use it
-builder.Services.AddSingleton<Action<string?>>(setToken);
-builder.Services.AddSingleton<Func<string?>>(getToken);
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options => {

@@ -64,7 +64,14 @@ builder.Services.AddCors(options =>
 });
 
 // Add services to the container - API only
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Handle circular references in JSON serialization
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+        // Make property names camelCase for consistency with JavaScript
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 
 // Add distributed memory cache for session support
 builder.Services.AddDistributedMemoryCache();

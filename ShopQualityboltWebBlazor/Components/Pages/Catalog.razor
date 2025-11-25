@@ -16,7 +16,8 @@
 @inject IApiService<Thread, Thread> threadApiService
 @inject IApiService<Spec, Spec> specApiService
 @inject ShoppingCartManagementService ShoppingCartManagementService
-@inject PunchOutManagementService punchOutManagementService;
+@inject PunchOutManagementService punchOutManagementService
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @implements IDisposable
 
 <PageTitle>Quality Bolt and Screw - Catalog</PageTitle>
@@ -69,7 +70,7 @@
                         <MudPaper Class="mb-4 pa-4" Elevation="2">
                             <MudGrid Class="d-flex align-end">
                                 <MudItem xs="12">
-                                    <MudText Typo="Typo.h5">@context.User.Claims.Where(x => x.Type == "ClientName").FirstOrDefault().Value - Catalog Items</MudText>
+                                    <MudText Typo="Typo.h5">@GetClientDisplayName() - Catalog Items</MudText>
                                 </MudItem>
                                 <MudItem xs="2"><MudText>Results: @_itemsToShow?.Count</MudText></MudItem>
                                 <MudItem xs="10"><MudTextField @bind-Value="_searchString" Immediate="true" TextChanged="@Filter" Label="Quick Filter"></MudTextField></MudItem>
@@ -225,11 +226,31 @@
 
     private bool isReadOnly => punchOutManagementService.CurrentPunchOutSession?.PunchOutOperation == Ariba.PunchOutSetupRequestOperation.inspect;
 
+    private string GetClientDisplayName()
+    {
+        // Use async pattern properly to avoid deadlocks
+        var authState = Task.Run(() => AuthenticationStateProvider.GetAuthenticationStateAsync()).GetAwaiter().GetResult();
+        var clientName = authState.User.Claims.FirstOrDefault(x => x.Type == "ClientName")?.Value;
+        return string.IsNullOrEmpty(clientName) ? "No Client" : clientName;
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
 
         ShoppingCartManagementService.UsersShoppingCartEVMChanged += OnUsersShoppingCartChanged;
+        
+        // Subscribe to authentication state changes to refresh the page when token is updated
+        AuthenticationStateProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+    }
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        // Force re-render when authentication state changes
+        InvokeAsync(() =>
+        {
+            StateHasChanged();
+        });
     }
 
     protected override async Task OnInitializedAsync() {
@@ -265,6 +286,7 @@
     public void Dispose()
     {
         ShoppingCartManagementService.UsersShoppingCartEVMChanged -= OnUsersShoppingCartChanged;
+        AuthenticationStateProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
     }
 
     private void OnUsersShoppingCartChanged(ShoppingCartPageEVM cartPage)

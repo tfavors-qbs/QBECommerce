@@ -1,0 +1,60 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch API (ShopQualityboltWeb)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-api",
+            "program": "${workspaceFolder}/ShopQualityboltWeb/ShopQualityboltWeb/bin/Debug/net9.0/ShopQualityboltWeb.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/ShopQualityboltWeb/ShopQualityboltWeb",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+                "uriFormat": "%s/swagger"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "https://localhost:7237;http://localhost:5278"
+            },
+            "sourceFileMap": {
+                "/Views": "${workspaceFolder}/ShopQualityboltWeb/ShopQualityboltWeb/Views"
+            }
+        },
+        {
+            "name": "Launch Blazor (ShopQualityboltWebBlazor)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build-blazor",
+            "program": "${workspaceFolder}/ShopQualityboltWebBlazor/bin/Debug/net9.0/ShopQualityboltWebBlazor.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/ShopQualityboltWebBlazor",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "https://localhost:7169;http://localhost:5197"
+            }
+        }
+    ],
+    "compounds": [
+        {
+            "name": "Launch Both (API + Blazor)",
+            "configurations": [
+                "Launch API (ShopQualityboltWeb)",
+                "Launch Blazor (ShopQualityboltWebBlazor)"
+            ],
+            "stopAll": true,
+            "presentation": {
+                "hidden": false,
+                "group": "",
+                "order": 1
+            }
+        }
+    ]
+}

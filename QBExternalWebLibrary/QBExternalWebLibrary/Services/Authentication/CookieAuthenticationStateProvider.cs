@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 namespace QBExternalWebLibrary.Services.Authentication {
     /// <summary>
     /// Handles state for cookie-based auth and JWT token-based auth for PunchOut.
+    /// Uses ITokenService for proper token management in Blazor Server.
     /// </summary>
     public class CookieAuthenticationStateProvider : AuthenticationStateProvider, IAccountManagement {
         /// <summary>
@@ -26,14 +27,9 @@ namespace QBExternalWebLibrary.Services.Authentication {
         private readonly HttpClient _httpClient;
 
         /// <summary>
-        /// Token getter function - injected from DI
+        /// Token service for managing JWT tokens
         /// </summary>
-        private readonly Func<string?> _getToken;
-        
-        /// <summary>
-        /// Token setter action - injected from DI
-        /// </summary>
-        private readonly Action<string?> _setToken;
+        private readonly ITokenService _tokenService;
 
         /// <summary>
         /// Logger for diagnostic output
@@ -52,64 +48,33 @@ namespace QBExternalWebLibrary.Services.Authentication {
             new(new ClaimsIdentity());
 
         /// <summary>
-        /// Track last token to detect automatic refreshes
-        /// </summary>
-        private string? _lastToken;
-
-        /// <summary>
         /// Create a new instance of the auth provider.
         /// </summary>
         /// <param name="httpClientFactory">Factory to retrieve auth client.</param>
-        /// <param name="getToken">Function to get current JWT token.</param>
-        /// <param name="setToken">Action to set JWT token.</param>
+        /// <param name="tokenService">Service for managing JWT tokens.</param>
         /// <param name="logger">Logger for diagnostic output.</param>
         public CookieAuthenticationStateProvider(
             IHttpClientFactory httpClientFactory,
-            Func<string?> getToken,
-            Action<string?> setToken,
+            ITokenService tokenService,
             ILogger<CookieAuthenticationStateProvider> logger)
         {
             _httpClient = httpClientFactory.CreateClient("Auth");
-            _getToken = getToken;
-            _setToken = setToken;
+            _tokenService = tokenService;
             _logger = logger;
-            _lastToken = getToken();
             
-            // Start a background task to monitor token changes
-            _ = MonitorTokenChangesAsync();
+            // Subscribe to token changes
+            _tokenService.OnTokenChanged += OnTokenChanged;
+            
+            _logger.LogInformation("[CookieAuthStateProvider] ?? Provider initialized");
         }
 
         /// <summary>
-        /// Monitor for token changes and refresh auth state when token is updated
+        /// Handle token change events
         /// </summary>
-        private async Task MonitorTokenChangesAsync()
+        private void OnTokenChanged(string? newToken)
         {
-            _logger.LogInformation("[CookieAuthStateProvider] ?? Token monitoring started");
-            
-            while (true)
-            {
-                try
-                {
-                    await Task.Delay(1000); // Check every second
-                    
-                    var currentToken = _getToken();
-                    if (currentToken != _lastToken && !string.IsNullOrEmpty(currentToken))
-                    {
-                        _logger.LogInformation("[CookieAuthStateProvider] ?? Token change detected! Refreshing authentication state...");
-                        _logger.LogDebug("[CookieAuthStateProvider] Old token length: {OldLength}, New token length: {NewLength}", 
-                            _lastToken?.Length ?? 0, currentToken.Length);
-                        
-                        _lastToken = currentToken;
-                        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
-                        
-                        _logger.LogInformation("[CookieAuthStateProvider] ? Authentication state change notification sent");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "[CookieAuthStateProvider] ? Error monitoring token changes");
-                }
-            }
+            _logger.LogInformation("[CookieAuthStateProvider] ?? Token change detected via event!");
+            NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
         }
 
         /// <summary>
@@ -177,13 +142,12 @@ namespace QBExternalWebLibrary.Services.Authentication {
                     
                     if (loginResponse != null && !string.IsNullOrEmpty(loginResponse.accessToken))
                     {
-                        // Store the JWT token - JwtTokenHandler will pick it up automatically
-                        _setToken(loginResponse.accessToken);
+                        // Store the JWT token using TokenService
+                        await _tokenService.SetTokenAsync(loginResponse.accessToken);
                         
                         _logger.LogInformation("Token stored successfully for {Email}", email);
                         
-                        // Refresh auth state
-                        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+                        // Refresh auth state (OnTokenChanged will be called automatically)
                         
                         return new FormResult { Succeeded = true };
                     }
@@ -230,13 +194,12 @@ namespace QBExternalWebLibrary.Services.Authentication {
                     
                     if (loginResponse != null && !string.IsNullOrEmpty(loginResponse.accessToken))
                     {
-                        // Store the JWT token - JwtTokenHandler will pick it up automatically
-                        _setToken(loginResponse.accessToken);
+                        // Store the JWT token using TokenService
+                        await _tokenService.SetTokenAsync(loginResponse.accessToken);
                         
                         _logger.LogInformation("Ariba token stored successfully for session {SessionId}", sessionId);
                         
-                        // Refresh auth state
-                        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+                        // Refresh auth state (OnTokenChanged will be called automatically)
                         
                         return new FormResult { Succeeded = true };
                     }
@@ -275,10 +238,10 @@ namespace QBExternalWebLibrary.Services.Authentication {
             var user = Unauthenticated;
 
             // Check if we have a token first
-            var token = _getToken();
+            var token = await _tokenService.GetTokenAsync();
             if (string.IsNullOrEmpty(token))
             {
-                // No token = not authenticated, don't make API calls
+                // No token = not authenticated
                 return new AuthenticationState(user);
             }
 
@@ -299,20 +262,20 @@ namespace QBExternalWebLibrary.Services.Authentication {
             } catch (Exception ex) { 
                 _logger.LogError(ex, "[CookieAuthStateProvider] Error decoding JWT token");
                 // Clear token on any failure
-                _setToken(null);
+                await _tokenService.SetTokenAsync(null);
             }
 
             return new AuthenticationState(user);
         }
 
         public async Task LogoutAsync() {
-            _setToken(null);
+            await _tokenService.SetTokenAsync(null);
 
             const string Empty = "{}";
             var emptyContent = new StringContent(Empty, Encoding.UTF8, "application/json");
-            await _httpClient.PostAsync("api/accounts/logout", emptyContent);  // Updated to use custom endpoint
+            await _httpClient.PostAsync("api/accounts/logout", emptyContent);
             
-            NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+            // OnTokenChanged will be called automatically
         }
 
         public async Task<bool> CheckAuthenticatedAsync() {
