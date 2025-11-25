@@ -84,6 +84,8 @@ namespace QBExternalWebLibrary.Services.Authentication {
         /// </summary>
         private async Task MonitorTokenChangesAsync()
         {
+            _logger.LogInformation("[CookieAuthStateProvider] ?? Token monitoring started");
+            
             while (true)
             {
                 try
@@ -93,14 +95,19 @@ namespace QBExternalWebLibrary.Services.Authentication {
                     var currentToken = _getToken();
                     if (currentToken != _lastToken && !string.IsNullOrEmpty(currentToken))
                     {
-                        _logger.LogInformation("Token change detected, refreshing authentication state");
+                        _logger.LogInformation("[CookieAuthStateProvider] ?? Token change detected! Refreshing authentication state...");
+                        _logger.LogDebug("[CookieAuthStateProvider] Old token length: {OldLength}, New token length: {NewLength}", 
+                            _lastToken?.Length ?? 0, currentToken.Length);
+                        
                         _lastToken = currentToken;
                         NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+                        
+                        _logger.LogInformation("[CookieAuthStateProvider] ? Authentication state change notification sent");
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error monitoring token changes");
+                    _logger.LogError(ex, "[CookieAuthStateProvider] ? Error monitoring token changes");
                 }
             }
         }
@@ -276,64 +283,21 @@ namespace QBExternalWebLibrary.Services.Authentication {
             }
 
             try {
-                // Token is automatically added by JwtTokenHandler
-                var userResponse = await _httpClient.GetAsync("api/accounts/info");
-
-                if (!userResponse.IsSuccessStatusCode)
-                {
-                    // Token might be expired or invalid
-                    _setToken(null);
-                    return new AuthenticationState(user);
-                }
-
-                var userJson = await userResponse.Content.ReadAsStringAsync();
-                var userInfo = JsonSerializer.Deserialize<UserInfo>(userJson, jsonSerializerOptions);
-
-                if (userInfo != null) {
-                    if (userInfo.ClientId == null) userInfo.ClientId = 0;
-                    if (userInfo.ClientId == 0) userInfo.ClientName = "";
-
-                    var claims = new List<Claim>
-                    {
-                        new(ClaimTypes.Name, userInfo.Email),
-                        new(ClaimTypes.Email, userInfo.Email)
-                    };
-
-                    if (!string.IsNullOrEmpty(userInfo.GivenName))
-                    {
-                        claims.Add(new Claim(ClaimTypes.GivenName, userInfo.GivenName));
-                        claims.Add(new Claim("FamilyName", userInfo.FamilyName ?? ""));
-                    }
-
-                    claims.Add(new Claim("ClientId", userInfo.ClientId.ToString()));
-                    claims.Add(new Claim("ClientName", userInfo.ClientName ?? ""));
-
-                    claims.AddRange(
-                        userInfo.Claims.Where(c => c.Key != ClaimTypes.Name && c.Key != ClaimTypes.Email)
-                            .Select(c => new Claim(c.Key, c.Value)));
-
-                    // Get roles
-                    var rolesResponse = await _httpClient.GetAsync("roles");
-                    
-                    if (rolesResponse.IsSuccessStatusCode)
-                    {
-                        var rolesJson = await rolesResponse.Content.ReadAsStringAsync();
-                        var roles = JsonSerializer.Deserialize<RoleClaim[]>(rolesJson, jsonSerializerOptions);
-
-                        if (roles?.Length > 0) {
-                            foreach (var role in roles) {
-                                if (!string.IsNullOrEmpty(role.Type) && !string.IsNullOrEmpty(role.Value)) {
-                                    claims.Add(new Claim(role.Type, role.Value, role.ValueType, role.Issuer, role.OriginalIssuer));
-                                }
-                            }
-                        }
-                    }
-
-                    var id = new ClaimsIdentity(claims, nameof(CookieAuthenticationStateProvider));
-                    user = new ClaimsPrincipal(id);
-                    _authenticated = true;
-                }
-            } catch { 
+                // Decode JWT token to get ALL claims (including UserModifiedAt)
+                var handler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
+                var jwtToken = handler.ReadJwtToken(token);
+                
+                // Create claims list from JWT token
+                var claims = jwtToken.Claims.ToList();
+                
+                _logger.LogDebug("[CookieAuthStateProvider] Decoded {ClaimCount} claims from JWT token", claims.Count);
+                
+                // Create authenticated identity with all JWT claims
+                var id = new ClaimsIdentity(claims, nameof(CookieAuthenticationStateProvider));
+                user = new ClaimsPrincipal(id);
+                _authenticated = true;
+            } catch (Exception ex) { 
+                _logger.LogError(ex, "[CookieAuthStateProvider] Error decoding JWT token");
                 // Clear token on any failure
                 _setToken(null);
             }

@@ -400,6 +400,9 @@ namespace ShopQualityboltWeb.Controllers.Api {
         }
 
         private string GenerateJwtToken(ApplicationUser user) {
+            _logger?.LogInformation("[DEBUG TOKEN] Generating JWT for user {Email}, LastModified: {LastModified}", 
+                user.Email, user.LastModified);
+            
             var claims = new List<Claim> {
                 new Claim(JwtRegisteredClaimNames.Sub, user.Id),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""),
@@ -410,6 +413,9 @@ namespace ShopQualityboltWeb.Controllers.Api {
                 // Track when user was last modified to detect stale claims
                 new Claim("UserModifiedAt", user.LastModified.ToString("O")) // ISO 8601 format
             };
+            
+            _logger?.LogInformation("[DEBUG TOKEN] UserModifiedAt claim value: {UserModifiedAt}", 
+                user.LastModified.ToString("O"));
 
             // Add GivenName and FamilyName if they exist
             if (!string.IsNullOrEmpty(user.GivenName))
@@ -456,7 +462,14 @@ namespace ShopQualityboltWeb.Controllers.Api {
                 signingCredentials: creds
             );
 
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
+            
+            _logger?.LogInformation("[DEBUG TOKEN] Generated token with {ClaimCount} claims for {Email}", 
+                claims.Count, user.Email);
+            _logger?.LogDebug("[DEBUG TOKEN] All claims: {Claims}", 
+                string.Join(", ", claims.Select(c => $"{c.Type}={c.Value}")));
+            
+            return tokenString;
         }
 
         private string GenerateRefreshToken() {

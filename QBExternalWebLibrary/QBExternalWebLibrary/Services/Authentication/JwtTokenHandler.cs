@@ -36,7 +36,12 @@ namespace QBExternalWebLibrary.Services.Authentication
             if (!string.IsNullOrEmpty(token))
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                _logger?.LogDebug("Added Authorization header to {Method} {Path}", 
+                _logger?.LogDebug("[JwtTokenHandler] Added Authorization header to {Method} {Path} (token length: {Length})", 
+                    request.Method, request.RequestUri?.PathAndQuery, token.Length);
+            }
+            else
+            {
+                _logger?.LogDebug("[JwtTokenHandler] No token available for {Method} {Path}", 
                     request.Method, request.RequestUri?.PathAndQuery);
             }
 
@@ -45,14 +50,27 @@ namespace QBExternalWebLibrary.Services.Authentication
 
             // Check if server sent a refreshed token
             if (response.Headers.TryGetValues("X-Token-Refreshed", out var refreshedValues) &&
-                refreshedValues.FirstOrDefault() == "true" &&
-                response.Headers.TryGetValues("X-Token-Refresh", out var tokenValues))
+                refreshedValues.FirstOrDefault() == "true")
             {
-                var newToken = tokenValues.FirstOrDefault();
-                if (!string.IsNullOrEmpty(newToken))
+                _logger?.LogInformation("[JwtTokenHandler] ? X-Token-Refreshed header detected!");
+                
+                if (response.Headers.TryGetValues("X-Token-Refresh", out var tokenValues))
                 {
-                    _logger?.LogInformation("Token refreshed automatically by server, updating local token");
-                    _setToken(newToken);
+                    var newToken = tokenValues.FirstOrDefault();
+                    if (!string.IsNullOrEmpty(newToken))
+                    {
+                        _logger?.LogInformation("[JwtTokenHandler] ?? New token received (length: {Length}), updating local storage", newToken.Length);
+                        _setToken(newToken);
+                        _logger?.LogInformation("[JwtTokenHandler] ? Token updated successfully");
+                    }
+                    else
+                    {
+                        _logger?.LogWarning("[JwtTokenHandler] ?? X-Token-Refresh header present but empty!");
+                    }
+                }
+                else
+                {
+                    _logger?.LogWarning("[JwtTokenHandler] ?? X-Token-Refreshed is true but X-Token-Refresh header is missing!");
                 }
             }
 
