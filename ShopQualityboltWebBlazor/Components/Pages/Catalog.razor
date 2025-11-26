@@ -325,9 +325,30 @@
         if (_selectedSpecs.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedSpecs.Any(s => s == i.SpecName || (s == "No Spec" && i.SpecName == null))).ToList();
         if (_selectedLengths.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedLengths.Any(l => l == i.LengthName || (l == "No Length" && i.LengthName == null))).ToList();
         if (_selectedDiameters.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedDiameters.Any(d => d == i.DiameterName || (d == "No Diameter" && i.DiameterName == null))).ToList();
-        _itemsToShow = _itemsToShow.Where(i => i.Description.Contains(_searchString, StringComparison.OrdinalIgnoreCase)
-            || i.CustomerStkNo.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(i => _allDiameters.Where(d => d.Id == i.DiameterId).FirstOrDefault()?.Value).ToList();
+        
+        // Quick search: split search string into words and match against description and all spec properties
+        if (!string.IsNullOrWhiteSpace(_searchString))
+        {
+            var searchWords = _searchString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            _itemsToShow = _itemsToShow.Where(i => 
+                searchWords.All(word => 
+                    (i.Description?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.CustomerStkNo?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.ClassName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.GroupName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.ShapeName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.MaterialName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.CoatingName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.ThreadName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.SpecName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.LengthName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.DiameterName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.SKUName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false)
+                )
+            ).ToList();
+        }
+        
+        _itemsToShow = _itemsToShow.OrderBy(i => _allDiameters.Where(d => d.Id == i.DiameterId).FirstOrDefault()?.Value).ToList();
     }
 
     private async Task ClassSelectionChanged(List<string> selections) {
