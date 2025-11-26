@@ -35,6 +35,16 @@ namespace ShopQualityboltWeb.Controllers.Api
                 var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
                 var userEmail = User.FindFirst(ClaimTypes.Email)?.Value;
 
+                // Remove validation errors for optional nested SKU properties (Diameter, Length, ProductID)
+                var keysToRemove = ModelState.Keys
+                    .Where(k => k.Contains(".SKU.Diameter") || k.Contains(".SKU.Length") || k.Contains(".SKU.ProductID"))
+                    .ToList();
+                
+                foreach (var key in keysToRemove)
+                {
+                    ModelState.Remove(key);
+                }
+
                 if (!ModelState.IsValid)
                 {
                     return BadRequest(ModelState);

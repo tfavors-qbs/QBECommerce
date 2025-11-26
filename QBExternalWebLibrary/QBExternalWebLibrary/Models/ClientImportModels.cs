@@ -43,11 +43,11 @@ namespace QBExternalWebLibrary.Models
         [Required]
         public string Name { get; set; }
         
-        public DimensionDto? Diameter { get; set; }
+        public DimensionDto Diameter { get; set; }
         
-        public DimensionDto? Length { get; set; }
+        public DimensionDto Length { get; set; }
         
-        public ProductIDDto? ProductID { get; set; }
+        public ProductIDDto ProductID { get; set; }
     }
 
     public class ProductIDDto

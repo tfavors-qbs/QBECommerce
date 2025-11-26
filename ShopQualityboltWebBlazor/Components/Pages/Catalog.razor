@@ -263,19 +263,27 @@
         if (_items != null) {
             _allDiameters = (await diameterApiService.GetAllAsync()).ToList();
             _allLengths = (await lengthApiService.GetAllAsync()).ToList();
-            _classes = _items.Select(x => x.ClassName).Distinct().OrderBy(c => c.ToString()).ToList();
-            _groups = _items.Select(x => x.GroupName).Distinct().OrderBy(c => c.ToString()).ToList();
-            _materials = _items.Select(x => x.MaterialName).Distinct().OrderBy(m => m.ToString()).ToList();
-            _shapes = _items.Select(x => x.ShapeName).Distinct().OrderBy(s => s.ToString()).ToList();
-            _coatings = _items.Select(x => x.CoatingName).Distinct().OrderBy(c => c.ToString()).ToList();
-            _threads = _items.Select(x => x.ThreadName).Distinct().OrderBy(t => t.ToString()).ToList();
-            _specs = _items.Select(x => x.SpecName).Distinct().OrderBy(s => s.ToString()).ToList();
-            _lengths = _items.Join(_allLengths, c => c.LengthId, l => l.Id, (c, l) => new { Name = $"{c.LengthName}", Value = $"{l.Value}" })
+            _classes = _items.Select(x => x.ClassName ?? "Uncategorized").Distinct().OrderBy(c => c.ToString()).ToList();
+            _groups = _items.Select(x => x.GroupName ?? "No Group").Distinct().OrderBy(c => c.ToString()).ToList();
+            _materials = _items.Select(x => x.MaterialName ?? "No Material").Distinct().OrderBy(m => m.ToString()).ToList();
+            _shapes = _items.Select(x => x.ShapeName ?? "No Shape").Distinct().OrderBy(s => s.ToString()).ToList();
+            _coatings = _items.Select(x => x.CoatingName ?? "No Coating").Distinct().OrderBy(c => c.ToString()).ToList();
+            _threads = _items.Select(x => x.ThreadName ?? "No Thread").Distinct().OrderBy(t => t.ToString()).ToList();
+            _specs = _items.Select(x => x.SpecName ?? "No Spec").Distinct().OrderBy(s => s.ToString()).ToList();
+            _lengths = _items
+                .Where(c => c.LengthId.HasValue)
+                .Join(_allLengths, c => c.LengthId, l => l.Id, (c, l) => new { Name = $"{c.LengthName}", Value = $"{l.Value}" })
                 .OrderBy(x => x.Value)
-                .Select(x => x.Name).Distinct().ToList();
-            _diameters = _items.Join(_allDiameters, c => c.DiameterId, d => d.Id, (c, d) => new { Name = $"{c.DiameterName}", Value = $"{d.Value}" })
+                .Select(x => x.Name).Distinct()
+                .Concat(new[] { "No Length" })
+                .ToList();
+            _diameters = _items
+                .Where(c => c.DiameterId.HasValue)
+                .Join(_allDiameters, c => c.DiameterId, d => d.Id, (c, d) => new { Name = $"{c.DiameterName}", Value = $"{d.Value}" })
                 .OrderBy(x => x.Value)
-                .Select(x => x.Name).Distinct().ToList();
+                .Select(x => x.Name).Distinct()
+                .Concat(new[] { "No Diameter" })
+                .ToList();
 
             _itemsToShow = _items.OrderBy(i => _allDiameters.Where(d => d.Id == i.DiameterId).FirstOrDefault()?.Value).ToList();
         }
@@ -308,15 +316,15 @@
 
     private void Filter() {
         _itemsToShow = _items;
-        if (_selectedClasses.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedClasses.Any(s => s == i.ClassName)).ToList();
-        if (_selectedGroups.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedGroups.Any(g => g == i.GroupName)).ToList();
-        if (_selectedShapes.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedShapes.Any(s => s == i.ShapeName)).ToList();
-        if (_selectedMaterials.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedMaterials.Any(s => s == i.MaterialName)).ToList();
-        if (_selectedCoatings.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedCoatings.Any(s => s == i.CoatingName)).ToList();
-        if (_selectedThreads.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedThreads.Any(s => s == i.ThreadName)).ToList();
-        if (_selectedSpecs.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedSpecs.Any(s => s == i.SpecName)).ToList();
-        if (_selectedLengths.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedLengths.Any(l => l == i.LengthName)).ToList();
-        if (_selectedDiameters.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedDiameters.Any(d => d == i.DiameterName)).ToList();
+        if (_selectedClasses.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null))).ToList();
+        if (_selectedGroups.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedGroups.Any(g => g == i.GroupName || (g == "No Group" && i.GroupName == null))).ToList();
+        if (_selectedShapes.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedShapes.Any(s => s == i.ShapeName || (s == "No Shape" && i.ShapeName == null))).ToList();
+        if (_selectedMaterials.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedMaterials.Any(s => s == i.MaterialName || (s == "No Material" && i.MaterialName == null))).ToList();
+        if (_selectedCoatings.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedCoatings.Any(s => s == i.CoatingName || (s == "No Coating" && i.CoatingName == null))).ToList();
+        if (_selectedThreads.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedThreads.Any(s => s == i.ThreadName || (s == "No Thread" && i.ThreadName == null))).ToList();
+        if (_selectedSpecs.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedSpecs.Any(s => s == i.SpecName || (s == "No Spec" && i.SpecName == null))).ToList();
+        if (_selectedLengths.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedLengths.Any(l => l == i.LengthName || (l == "No Length" && i.LengthName == null))).ToList();
+        if (_selectedDiameters.Count != 0) _itemsToShow = _itemsToShow.Where(i => _selectedDiameters.Any(d => d == i.DiameterName || (d == "No Diameter" && i.DiameterName == null))).ToList();
         _itemsToShow = _itemsToShow.Where(i => i.Description.Contains(_searchString, StringComparison.OrdinalIgnoreCase)
             || i.CustomerStkNo.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
             .OrderBy(i => _allDiameters.Where(d => d.Id == i.DiameterId).FirstOrDefault()?.Value).ToList();
@@ -326,22 +334,28 @@
         _selectedClasses = selections;
         if (_selectedClasses.Count > 0) {
             _groups.Clear();
-            _groups = _items.Where(i => _selectedClasses.Any(c => c == i.ClassName)).Select(x => x.GroupName).Distinct().OrderBy(c => c.ToString()).ToList();
-            _shapes = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName)).Select(x => x.ShapeName).Distinct().OrderBy(c => c.ToString()).ToList();
+            _groups = _items.Where(i => _selectedClasses.Any(c => c == i.ClassName || (c == "Uncategorized" && i.ClassName == null))).Select(x => x.GroupName ?? "No Group").Distinct().OrderBy(c => c.ToString()).ToList();
+            _shapes = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null))).Select(x => x.ShapeName ?? "No Shape").Distinct().OrderBy(c => c.ToString()).ToList();
             //diameters
             //lengths
-            _materials = _items.Where(i => _selectedClasses.Any(m => m == i.ClassName)).Select(x => x.MaterialName).Distinct().OrderBy(c => c.ToString()).ToList();//materials
-            _coatings = _items.Where(i => _selectedClasses.Any(c => c == i.ClassName)).Select(x => x.CoatingName).Distinct().OrderBy(c => c.ToString()).ToList();//coatings
-            _threads = _items.Where(i => _selectedClasses.Any(t => t == i.ClassName)).Select(x => x.ThreadName).Distinct().OrderBy(c => c.ToString()).ToList();//threads
-            _specs = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName)).Select(x => x.SpecName).Distinct().OrderBy(c => c.ToString()).ToList();//Specs
-            _lengths = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName))
+            _materials = _items.Where(i => _selectedClasses.Any(m => m == i.ClassName || (m == "Uncategorized" && i.ClassName == null))).Select(x => x.MaterialName ?? "No Material").Distinct().OrderBy(c => c.ToString()).ToList();//materials
+            _coatings = _items.Where(i => _selectedClasses.Any(c => c == i.ClassName || (c == "Uncategorized" && i.ClassName == null))).Select(x => x.CoatingName ?? "No Coating").Distinct().OrderBy(c => c.ToString()).ToList();//coatings
+            _threads = _items.Where(i => _selectedClasses.Any(t => t == i.ClassName || (t == "Uncategorized" && i.ClassName == null))).Select(x => x.ThreadName ?? "No Thread").Distinct().OrderBy(c => c.ToString()).ToList();//threads
+            _specs = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null))).Select(x => x.SpecName ?? "No Spec").Distinct().OrderBy(c => c.ToString()).ToList();//Specs
+            _lengths = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null)))
+                .Where(c => c.LengthId.HasValue)
                 .Join(_allLengths, c => c.LengthId, l => l.Id, (c, l) => new { Name = $"{c.LengthName}", Value = $"{l.Value}" })
                 .OrderBy(x => x.Value)
-                .Select(x => x.Name).Distinct().ToList();
-            _diameters = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName))
+                .Select(x => x.Name).Distinct()
+                .Concat(new[] { "No Length" })
+                .ToList();
+            _diameters = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null)))
+                .Where(c => c.DiameterId.HasValue)
                 .Join(_allDiameters, c => c.DiameterId, d => d.Id, (c, d) => new { Name = $"{c.DiameterName}", Value = $"{d.Value}" })
                 .OrderBy(x => x.Value)
-                .Select(x => x.Name).Distinct().ToList();
+                .Select(x => x.Name).Distinct()
+                .Concat(new[] { "No Diameter" })
+                .ToList();
             _groupFilter.UpdateSpecificaitonList(_groups);
             _shapeFilter.UpdateSpecificaitonList(_shapes);
             _materialFilter.UpdateSpecificaitonList(_materials);

@@ -128,7 +128,7 @@
                 Non-Stock Items Requiring Specifications (@nonStockItemsWithoutSpecs.Count)
             </MudText>
             <MudAlert Severity="Severity.Info" Class="mb-4">
-                These #XN items do not have ProductID, Diameter, or Length assigned. Use the filters below to find and assign appropriate specifications.
+                These #XN items do not have ProductID. Use the filters below to find and assign appropriate specifications.
             </MudAlert>
 
             <MudGrid Class="mb-4">
@@ -250,6 +250,61 @@
             </MudTable>
         </MudPaper>
     }
+
+    @* Items Missing Diameter and Length *@
+    @if (contractItems != null && contractItems.Any() && itemsMissingSpecs.Any())
+    {
+        <MudPaper Class="pa-4 mt-4">
+            <MudText Typo="Typo.h5" Class="mb-4">
+                <MudIcon Icon="@Icons.Material.Filled.Error" Color="Color.Error" Class="mr-2" />
+                Items Missing Diameter and Length (@itemsMissingSpecs.Count)
+            </MudText>
+            <MudAlert Severity="Severity.Warning" Class="mb-4">
+                These items do not have Diameter or Length assigned, regardless of stock status. This may indicate incomplete data that needs attention.
+            </MudAlert>
+
+            <MudTable Items="@itemsMissingSpecs" Hover="true" Striped="true" Dense="true">
+                <HeaderContent>
+                    <MudTh>Customer Stock #</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>SKU</MudTh>
+                    <MudTh>Stock Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Customer Stock #">@context.CustomerStkNo</MudTd>
+                    <MudTd DataLabel="Description">@context.Description</MudTd>
+                    <MudTd DataLabel="SKU">
+                        @if (context.NonStock)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">@context.SKUName</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Info" Size="Size.Small">@context.SKUName</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Stock Status">
+                        @if (context.NonStock)
+                        {
+                            <MudChip T="string" Color="Color.Warning" Size="Size.Small">Non-Stock</MudChip>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Color="Color.Success" Size="Size.Small">In Stock</MudChip>
+                        }
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                                       OnClick="@(() => OpenEditDialog(context))" />
+                    </MudTd>
+                </RowTemplate>
+                <PagerContent>
+                    <MudTablePager PageSizeOptions="new int[] { 10, 25, 50, 100 }" />
+                </PagerContent>
+            </MudTable>
+        </MudPaper>
+    }
 </MudContainer>
 
 @code {
@@ -265,6 +320,7 @@
 
     // Non-stock items management
     private List<ContractItemEditViewModel> nonStockItemsWithoutSpecs = new();
+    private List<ContractItemEditViewModel> itemsMissingSpecs = new();
     private List<Group> groups = new();
     private List<Shape> shapes = new();
     private List<Material> materials = new();
@@ -370,12 +426,15 @@
                 // Filter non-stock items without specifications
                 nonStockItemsWithoutSpecs = contractItems
                     .Where(ci => ci.NonStock && 
-                                !ci.ProductIDId.HasValue && 
-                                !ci.DiameterId.HasValue && 
-                                !ci.LengthId.HasValue)
+                                !ci.ProductIDId.HasValue)
                     .ToList();
 
-                Snackbar.Add($"Loaded {contractItems.Count} contract items ({nonStockItemsWithoutSpecs.Count} non-stock items need specifications)", Severity.Success);
+                // Filter all items missing diameter AND length (regardless of stock status)
+                itemsMissingSpecs = contractItems
+                    .Where(ci => !ci.DiameterId.HasValue && !ci.LengthId.HasValue)
+                    .ToList();
+
+                Snackbar.Add($"Loaded {contractItems.Count} contract items ({nonStockItemsWithoutSpecs.Count} non-stock items need specifications, {itemsMissingSpecs.Count} items missing specs)", Severity.Success);
             }
             else
             {
