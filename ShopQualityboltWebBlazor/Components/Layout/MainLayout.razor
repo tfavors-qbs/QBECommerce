@@ -61,6 +61,28 @@
         base.OnInitializedAsync();
         _theme = new()
             {
+                PaletteLight = new PaletteLight()
+                {
+                    Primary = "#366D88", // Teflon coating blue
+                    Secondary = "#2B5670", // Darker blue-teal
+                    Tertiary = "#4A86A0", // Lighter blue-teal
+                    Info = "#5BA0C8", // Bright blue
+                    Success = "#28A745",
+                    Warning = "#FFA500",
+                    Error = "#DC143C",
+                    AppbarBackground = "#366D88",
+                },
+                PaletteDark = new PaletteDark()
+                {
+                    Primary = "#366D88",
+                    Secondary = "#2B5670",
+                    Tertiary = "#4A86A0",
+                    Info = "#5BA0C8",
+                    Success = "#28A745",
+                    Warning = "#FFA500",
+                    Error = "#DC143C",
+                    AppbarBackground = "#2B5670",
+                },
                 LayoutProperties = new LayoutProperties()
             };
     }
