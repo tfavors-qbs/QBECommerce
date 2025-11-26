@@ -118,6 +118,138 @@
     {
         <MudAlert Severity="Severity.Info">No contract items found for the selected client.</MudAlert>
     }
+
+    @* Non-Stock Items Requiring ProductID Assignment *@
+    @if (contractItems != null && contractItems.Any() && nonStockItemsWithoutSpecs.Any())
+    {
+        <MudPaper Class="pa-4 mt-4">
+            <MudText Typo="Typo.h5" Class="mb-4">
+                <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Warning" Class="mr-2" />
+                Non-Stock Items Requiring Specifications (@nonStockItemsWithoutSpecs.Count)
+            </MudText>
+            <MudAlert Severity="Severity.Info" Class="mb-4">
+                These #XN items do not have ProductID, Diameter, or Length assigned. Use the filters below to find and assign appropriate specifications.
+            </MudAlert>
+
+            <MudGrid Class="mb-4">
+                <MudItem xs="12" md="4">
+                    <MudSelect T="int?" @bind-Value="selectedGroupId" Label="Group" Variant="Variant.Outlined" 
+                               Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
+                               OnClearButtonClick="@(() => selectedGroupId = null)">
+                        @if (groups != null)
+                        {
+                            foreach (var group in groups)
+                            {
+                                <MudSelectItem Value="@((int?)group.Id)">@group.DisplayName</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="int?" @bind-Value="selectedShapeId" Label="Shape" Variant="Variant.Outlined" 
+                               Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
+                               OnClearButtonClick="@(() => selectedShapeId = null)">
+                        @if (shapes != null)
+                        {
+                            foreach (var shape in shapes)
+                            {
+                                <MudSelectItem Value="@((int?)shape.Id)">@shape.DisplayName</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="int?" @bind-Value="selectedMaterialId" Label="Material" Variant="Variant.Outlined" 
+                               Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
+                               OnClearButtonClick="@(() => selectedMaterialId = null)">
+                        @if (materials != null)
+                        {
+                            foreach (var material in materials)
+                            {
+                                <MudSelectItem Value="@((int?)material.Id)">@material.DisplayName</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="int?" @bind-Value="selectedCoatingId" Label="Coating" Variant="Variant.Outlined" 
+                               Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
+                               OnClearButtonClick="@(() => selectedCoatingId = null)">
+                        @if (coatings != null)
+                        {
+                            foreach (var coating in coatings)
+                            {
+                                <MudSelectItem Value="@((int?)coating.Id)">@coating.DisplayName</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="int?" @bind-Value="selectedThreadId" Label="Thread" Variant="Variant.Outlined" 
+                               Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
+                               OnClearButtonClick="@(() => selectedThreadId = null)">
+                        @if (threads != null)
+                        {
+                            foreach (var thread in threads)
+                            {
+                                <MudSelectItem Value="@((int?)thread.Id)">@thread.DisplayName</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudSelect T="int?" @bind-Value="selectedSpecId" Label="Spec" Variant="Variant.Outlined" 
+                               Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
+                               OnClearButtonClick="@(() => selectedSpecId = null)">
+                        @if (specs != null)
+                        {
+                            foreach (var spec in specs)
+                            {
+                                <MudSelectItem Value="@((int?)spec.Id)">@spec.DisplayName</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+
+            <MudText Typo="Typo.subtitle1" Class="mb-2">
+                Matching ProductIDs: @filteredProductIDs.Count
+            </MudText>
+
+            <MudTable Items="@nonStockItemsWithoutSpecs" Hover="true" Striped="true" Dense="true">
+                <HeaderContent>
+                    <MudTh>Customer Stock #</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>SKU</MudTh>
+                    <MudTh>Assign ProductID</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Customer Stock #">@context.CustomerStkNo</MudTd>
+                    <MudTd DataLabel="Description">@context.Description</MudTd>
+                    <MudTd DataLabel="SKU">
+                        <MudChip T="string" Color="Color.Warning" Size="Size.Small">@context.SKUName</MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Assign ProductID">
+                        <MudSelect T="int?" @bind-Value="@context.ProductIDId" Label="ProductID" Variant="Variant.Outlined" 
+                                   Dense="true" Margin="Margin.Dense">
+                            @foreach (var productId in filteredProductIDs)
+                            {
+                                <MudSelectItem Value="@((int?)productId.Id)">@productId.LegacyName - @productId.Description</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small"
+                                   OnClick="@(async () => await AssignProductIDToContractItem(context))"
+                                   Disabled="@(context.ProductIDId == null)">
+                            Save
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+    }
 </MudContainer>
 
 @code {
@@ -130,6 +262,37 @@
     private bool loading = false;
     private string searchString = "";
     private HttpClient _httpClient;
+
+    // Non-stock items management
+    private List<ContractItemEditViewModel> nonStockItemsWithoutSpecs = new();
+    private List<Group> groups = new();
+    private List<Shape> shapes = new();
+    private List<Material> materials = new();
+    private List<Coating> coatings = new();
+    private List<Thread> threads = new();
+    private List<Spec> specs = new();
+    private List<ProductIDEditViewModel> allProductIDs = new();
+    private int? selectedGroupId;
+    private int? selectedShapeId;
+    private int? selectedMaterialId;
+    private int? selectedCoatingId;
+    private int? selectedThreadId;
+    private int? selectedSpecId;
+
+    private List<ProductIDEditViewModel> filteredProductIDs
+    {
+        get
+        {
+            return allProductIDs.Where(p =>
+                (!selectedGroupId.HasValue || p.GroupId == selectedGroupId.Value) &&
+                (!selectedShapeId.HasValue || p.ShapeId == selectedShapeId.Value) &&
+                (!selectedMaterialId.HasValue || p.MaterialId == selectedMaterialId.Value) &&
+                (!selectedCoatingId.HasValue || p.CoatingId == selectedCoatingId.Value) &&
+                (!selectedThreadId.HasValue || p.ThreadId == selectedThreadId.Value) &&
+                (!selectedSpecId.HasValue || p.SpecId == selectedSpecId.Value)
+            ).ToList();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -167,6 +330,17 @@
             skus = (await SKUService.GetAllAsync()).ToList();
             diameters = (await DiameterService.GetAllAsync()).ToList();
             lengths = (await LengthService.GetAllAsync()).ToList();
+
+            // Load specification types for filtering
+            groups = (await _httpClient.GetFromJsonAsync<List<Group>>("api/groups")) ?? new List<Group>();
+            shapes = (await _httpClient.GetFromJsonAsync<List<Shape>>("api/shapes")) ?? new List<Shape>();
+            materials = (await _httpClient.GetFromJsonAsync<List<Material>>("api/materials")) ?? new List<Material>();
+            coatings = (await _httpClient.GetFromJsonAsync<List<Coating>>("api/coatings")) ?? new List<Coating>();
+            threads = (await _httpClient.GetFromJsonAsync<List<Thread>>("api/threads")) ?? new List<Thread>();
+            specs = (await _httpClient.GetFromJsonAsync<List<Spec>>("api/specs")) ?? new List<Spec>();
+
+            // Load all ProductIDs for filtering
+            allProductIDs = (await _httpClient.GetFromJsonAsync<List<ProductIDEditViewModel>>("api/productids")) ?? new List<ProductIDEditViewModel>();
         }
         catch (Exception ex)
         {
@@ -185,7 +359,23 @@
             if (response.IsSuccessStatusCode)
             {
                 contractItems = (await response.Content.ReadFromJsonAsync<List<ContractItemEditViewModel>>()) ?? new List<ContractItemEditViewModel>();
-                Snackbar.Add($"Loaded {contractItems.Count} contract items", Severity.Success);
+                
+                // Debug: Check first few items received
+                Console.WriteLine($"[Blazor] Received {contractItems.Count} contract items");
+                foreach (var item in contractItems.Take(3))
+                {
+                    Console.WriteLine($"[Blazor] Item {item.Id} ({item.CustomerStkNo}): LengthId={item.LengthId}, LengthName={item.LengthName ?? "NULL"}, DiameterId={item.DiameterId}, DiameterName={item.DiameterName ?? "NULL"}");
+                }
+                
+                // Filter non-stock items without specifications
+                nonStockItemsWithoutSpecs = contractItems
+                    .Where(ci => ci.NonStock && 
+                                !ci.ProductIDId.HasValue && 
+                                !ci.DiameterId.HasValue && 
+                                !ci.LengthId.HasValue)
+                    .ToList();
+
+                Snackbar.Add($"Loaded {contractItems.Count} contract items ({nonStockItemsWithoutSpecs.Count} non-stock items need specifications)", Severity.Success);
             }
             else
             {
@@ -284,6 +474,35 @@
             {
                 Snackbar.Add($"Error deleting contract item: {ex.Message}", Severity.Error);
             }
+        }
+    }
+
+    private async Task AssignProductIDToContractItem(ContractItemEditViewModel item)
+    {
+        if (!item.ProductIDId.HasValue)
+        {
+            Snackbar.Add("Please select a ProductID first", Severity.Warning);
+            return;
+        }
+
+        try
+        {
+            var response = await _httpClient.PutAsJsonAsync($"api/contractitems/{item.Id}", item);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"ProductID assigned to {item.CustomerStkNo} successfully", Severity.Success);
+                await LoadContractItems(); // Reload to update the non-stock items list
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Snackbar.Add($"Error assigning ProductID: {response.StatusCode} - {errorContent}", Severity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error assigning ProductID: {ex.Message}", Severity.Error);
         }
     }
 }

@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using QBExternalWebLibrary.Data;
 
@@ -11,9 +12,11 @@ using QBExternalWebLibrary.Data;
 namespace QBExternalWebLibrary.Migrations
 {
     [DbContext(typeof(DataContext))]
-    partial class DataContextModelSnapshot : ModelSnapshot
+    [Migration("20251126141818_MakeSKUFieldsOptional")]
+    partial class MakeSKUFieldsOptional
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -372,9 +375,6 @@ namespace QBExternalWebLibrary.Migrations
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(18,4)");
 
-                    b.Property<int?>("ProductIDId")
-                        .HasColumnType("int");
-
                     b.Property<int?>("SKUId")
                         .HasColumnType("int");
 
@@ -385,8 +385,6 @@ namespace QBExternalWebLibrary.Migrations
                     b.HasIndex("DiameterId");
 
                     b.HasIndex("LengthId");
-
-                    b.HasIndex("ProductIDId");
 
                     b.HasIndex("SKUId");
 
@@ -875,10 +873,6 @@ namespace QBExternalWebLibrary.Migrations
                         .WithMany()
                         .HasForeignKey("LengthId");
 
-                    b.HasOne("QBExternalWebLibrary.Models.Products.ProductID", "ProductID")
-                        .WithMany()
-                        .HasForeignKey("ProductIDId");
-
                     b.HasOne("QBExternalWebLibrary.Models.Products.SKU", "SKU")
                         .WithMany()
                         .HasForeignKey("SKUId");
@@ -888,8 +882,6 @@ namespace QBExternalWebLibrary.Migrations
                     b.Navigation("Diameter");
 
                     b.Navigation("Length");
-
-                    b.Navigation("ProductID");
 
                     b.Navigation("SKU");
                 });

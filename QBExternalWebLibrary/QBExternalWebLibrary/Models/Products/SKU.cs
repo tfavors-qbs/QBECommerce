@@ -10,12 +10,12 @@ namespace QBExternalWebLibrary.Models.Products
         public int? LengthId { get; set; }
         public Length? Length { get; set; }
         [DisplayName("Diameter ID")]
-        public int DiameterId { get; set; }
-        public Diameter Diameter { get; set; }
+        public int? DiameterId { get; set; }
+        public Diameter? Diameter { get; set; }
         [DisplayName("Product ID")]
-        public int ProductIDId { get; set; }
+        public int? ProductIDId { get; set; }
         [DisplayName("Product ID")]
-        public ProductID ProductId { get; set; }
+        public ProductID? ProductId { get; set; }
     }
 
     public class SKUEditViewModel
@@ -24,16 +24,16 @@ namespace QBExternalWebLibrary.Models.Products
         [DisplayName("Length")] 
         public int? LengthId { get; set; }
         [DisplayName("Length")]
-        public string LengthName { get; set; }
+        public string? LengthName { get; set; }
         [DisplayName("Name")]
         public string Name { get; set; }
         [DisplayName("Diameter")]
-        public int DiameterId { get; set; }
+        public int? DiameterId { get; set; }
         [DisplayName("Diameter")]
-        public string DiameterName { get; set; }
+        public string? DiameterName { get; set; }
         [DisplayName("Product ID")]
-        public int ProductIDId { get; set; }
+        public int? ProductIDId { get; set; }
         [DisplayName("Product ID")]
-        public string ProductIDName { get; set; }
+        public string? ProductIDName { get; set; }
     }
 }

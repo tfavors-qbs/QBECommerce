@@ -17,6 +17,8 @@ namespace QBExternalWebLibrary.Models {
         public Client Client { get; set; }
         public int? SKUId { get; set; }
         public SKU? SKU { get; set; }
+        public int? ProductIDId { get; set; }
+        public ProductID? ProductID { get; set; }
         public int? DiameterId { get; set; }
         public Diameter? Diameter { get; set; }
         public int? LengthId { get; set; }
@@ -38,6 +40,10 @@ namespace QBExternalWebLibrary.Models {
         public int? SKUId { get; set; }
         [DisplayName("SKU")]
         public string? SKUName { get; set; }
+        [DisplayName("Product ID")]
+        public int? ProductIDId { get; set; }
+        [DisplayName("Product ID")]
+        public string? ProductIDName { get; set; }
         [DisplayName("Diameter")]
         public int? DiameterId { get; set; }
         [DisplayName("Diameter")]

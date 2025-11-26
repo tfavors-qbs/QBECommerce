@@ -91,11 +91,30 @@ namespace ShopQualityboltWeb.Controllers.Api
         public async Task<ActionResult<IEnumerable<ContractItemEditViewModel>>> GetContractItemsByClient(int clientId) {
 			try
 			{
-				var contractItems = _service.GetAll().Where(x => x.ClientId == clientId);
-				return _mapper.MapToEdit(contractItems);
+				_logger.LogInformation("Getting contract items for client {ClientId}", clientId);
+				var contractItems = _service.GetAll().Where(x => x.ClientId == clientId).ToList();
+				_logger.LogInformation("Found {Count} contract items for client {ClientId}", contractItems.Count, clientId);
+				
+				// Debug: Check first few items before mapping
+				foreach (var item in contractItems.Take(3)) {
+					_logger.LogInformation("[API-Before-Map] Item {Id}: LengthId={LengthId}, Length={Length}, DiameterId={DiameterId}, Diameter={Diameter}",
+						item.Id, item.LengthId, item.Length?.DisplayName ?? "NULL", item.DiameterId, item.Diameter?.DisplayName ?? "NULL");
+				}
+
+				var result = _mapper.MapToEdit(contractItems);
+				_logger.LogInformation("Successfully mapped {Count} contract items", result.Count);
+				
+				// Debug: Check first few items after mapping
+				foreach (var item in result.Take(3)) {
+					_logger.LogInformation("[API-After-Map] Item {Id}: LengthId={LengthId}, LengthName={LengthName}, DiameterId={DiameterId}, DiameterName={DiameterName}",
+						item.Id, item.LengthId, item.LengthName ?? "NULL", item.DiameterId, item.DiameterName ?? "NULL");
+				}
+
+				return result;
 			}
 			catch (Exception ex)
 			{
+				_logger.LogError(ex, "Failed to get contract items for client {ClientId}. Error: {Message}", clientId, ex.Message);
 				await _errorLogService.LogErrorAsync(
 					"Contract Items Error",
 					"Failed to Get Contract Items by Client (Admin)",

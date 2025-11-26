@@ -14,38 +14,70 @@ namespace QBExternalWebLibrary.Data.Repositories {
         public override IEnumerable<ContractItem> Find(Expression<Func<ContractItem, bool>> predicate) {
             return _dbSet.Where(predicate)
 				.Include(c => c.Client)
+				.Include(c => c.SKU).ThenInclude(s => s.Length)
+				.Include(c => c.SKU).ThenInclude(s => s.Diameter)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Group).ThenInclude(g => g.Class)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Shape)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(s => s.Material)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(s => s.Coating)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Thread)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Spec)
+				.Include(c => c.ProductID).ThenInclude(p => p.Group).ThenInclude(g => g.Class)
+				.Include(c => c.ProductID).ThenInclude(p => p.Shape)
+				.Include(c => c.ProductID).ThenInclude(p => p.Material)
+				.Include(c => c.ProductID).ThenInclude(p => p.Coating)
+				.Include(c => c.ProductID).ThenInclude(p => p.Thread)
+				.Include(c => c.ProductID).ThenInclude(p => p.Spec)
 				.Include(c => c.Length)
 				.Include(c => c.Diameter);
 		}
 
         public override IEnumerable<ContractItem> GetAll() {
-            return _dbSet
+            var items = _dbSet
                 .Include(c => c.Client)
+                .Include(c => c.SKU).ThenInclude(s => s.Length)
+                .Include(c => c.SKU).ThenInclude(s => s.Diameter)
                 .Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Group).ThenInclude(g => g.Class)
                 .Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Shape)
                 .Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(s => s.Material)
                 .Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(s => s.Coating)
                 .Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Thread)
                 .Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Spec)
+                .Include(c => c.ProductID).ThenInclude(p => p.Group).ThenInclude(g => g.Class)
+                .Include(c => c.ProductID).ThenInclude(p => p.Shape)
+                .Include(c => c.ProductID).ThenInclude(p => p.Material)
+                .Include(c => c.ProductID).ThenInclude(p => p.Coating)
+                .Include(c => c.ProductID).ThenInclude(p => p.Thread)
+                .Include(c => c.ProductID).ThenInclude(p => p.Spec)
                 .Include(c => c.Length)
-                .Include(c => c.Diameter);
+                .Include(c => c.Diameter)
+                .ToList();
+
+            // Debug logging
+            foreach (var item in items.Take(3)) {
+                Console.WriteLine($"[ContractItemRepo] Item {item.Id}: LengthId={item.LengthId}, Length={(item.Length != null ? item.Length.DisplayName : "NULL")}, DiameterId={item.DiameterId}, Diameter={(item.Diameter != null ? item.Diameter.DisplayName : "NULL")}");
+            }
+
+            return items;
         }
 
         public override ContractItem GetById(int? id) {
             return _dbSet
 				.Include(c => c.Client)
+				.Include(c => c.SKU).ThenInclude(s => s.Length)
+				.Include(c => c.SKU).ThenInclude(s => s.Diameter)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Group).ThenInclude(g => g.Class)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Shape)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(s => s.Material)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(s => s.Coating)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Thread)
 				.Include(c => c.SKU).ThenInclude(s => s.ProductId).ThenInclude(p => p.Spec)
+				.Include(c => c.ProductID).ThenInclude(p => p.Group).ThenInclude(g => g.Class)
+				.Include(c => c.ProductID).ThenInclude(p => p.Shape)
+				.Include(c => c.ProductID).ThenInclude(p => p.Material)
+				.Include(c => c.ProductID).ThenInclude(p => p.Coating)
+				.Include(c => c.ProductID).ThenInclude(p => p.Thread)
+				.Include(c => c.ProductID).ThenInclude(p => p.Spec)
 				.Include(c => c.Length)
 				.Include(c => c.Diameter)
                 .FirstOrDefault(m => m.Id == id);

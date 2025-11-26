@@ -273,18 +273,26 @@ namespace ShopQualityboltWeb.Controllers.Api
                 return existingSKU;
             }
 
-            // Need to create ProductID first
-            var productId = await GetOrCreateProductID(skuDto.ProductID);
-            if (productId == null)
+            // Get ProductID (optional for non-stock items like #XN)
+            int? productIdId = null;
+            if (skuDto.ProductID != null)
             {
-                return null;
+                var productId = await GetOrCreateProductID(skuDto.ProductID);
+                if (productId != null)
+                {
+                    productIdId = productId.Id;
+                }
             }
 
-            // Get Diameter (required)
-            var diameter = await GetOrCreateDimension<Diameter>("Diameters", skuDto.Diameter);
-            if (diameter == null)
+            // Get Diameter (optional for non-stock items like #XN)
+            int? diameterId = null;
+            if (skuDto.Diameter != null)
             {
-                throw new InvalidOperationException($"Could not create or find Diameter: {skuDto.Diameter?.Name}");
+                var diameter = await GetOrCreateDimension<Diameter>("Diameters", skuDto.Diameter);
+                if (diameter != null)
+                {
+                    diameterId = diameter.Id;
+                }
             }
 
             // Get Length (optional)
@@ -298,8 +306,8 @@ namespace ShopQualityboltWeb.Controllers.Api
             var sku = new SKU
             {
                 Name = skuDto.Name,
-                ProductIDId = productId.Id,
-                DiameterId = diameter.Id,
+                ProductIDId = productIdId,
+                DiameterId = diameterId,
                 LengthId = lengthId
             };
 

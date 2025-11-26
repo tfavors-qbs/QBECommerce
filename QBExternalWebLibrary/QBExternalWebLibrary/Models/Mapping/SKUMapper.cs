@@ -29,8 +29,8 @@ namespace QBExternalWebLibrary.Models.Mapping {
                 DiameterId = model.DiameterId,
                 ProductIDId = model.ProductIDId,
                 LengthName = model.Length?.DisplayName,
-                DiameterName = model.Diameter.DisplayName,
-                ProductIDName = model.ProductId.LegacyName
+                DiameterName = model.Diameter?.DisplayName,
+                ProductIDName = model.ProductId?.LegacyName
             };
         }
 
