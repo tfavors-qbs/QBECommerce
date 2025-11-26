@@ -34,33 +34,197 @@
             @* <MudText>@Status</MudText> *@
             <MudGrid>
                 <MudItem xs="12" sm="12" md="12" lg="3" xl="3">
-                    <MudPaper Class="pa-4 d-flex flex-column overflow-x-auto" MaxHeight="@((15*_itemsPerPage).ToString() + "vh")">
-                        <MudStack>
-                            <MudText Typo="Typo.h5">Filters</MudText>
-                            @if (_classes != null && _classes.Count != 0) {
-                                <SpecificationFilter SelectionChanged="ClassSelectionChanged" Title="Classes" Specifications="_classes" MultiSelect="false"></SpecificationFilter>
+                    <MudPaper Class="pa-4" Elevation="1">
+                        <MudStack Spacing="3">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.h6">Filters</MudText>
+                                @if (HasActiveFilters())
+                                {
+                                    <MudButton Size="Size.Small" Color="Color.Secondary" OnClick="ClearAllFilters" StartIcon="@Icons.Material.Filled.Clear">
+                                        Clear All
+                                    </MudButton>
+                                }
+                            </MudStack>
+                            <MudDivider />
+
+                            @* Class Filter *@
+                            @if (_classes?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0" DisableGutters="true">
+                                    <MudExpansionPanel Text="Class" IsInitiallyExpanded="true">
+                                        <MudStack Spacing="1">
+                                            @foreach (var cls in _classes)
+                                            {
+                                                <MudCheckBox T="bool" 
+                                                            Value="@_selectedClasses.Contains(cls)"
+                                                            ValueChanged="@((bool val) => ToggleClassFilter(cls, val))"
+                                                            Label="@cls"
+                                                            Dense="true"
+                                                            Color="Color.Primary" />
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
                             }
-                            <SpecificationFilter @ref="_groupFilter" SelectionChanged="GroupSelectionChanged" Title="Groups" Specifications="_groups" MultiSelect="true"></SpecificationFilter>
-                            @if (_diameters != null && _diameters.Count != 0) {
-                                <SpecificationFilter @ref="_diameterFilter" SelectionChanged="DiameterSelectionChanged" Title="Diameters" Specifications="_diameters" MultiSelect="true"></SpecificationFilter>
+
+                            @* Group Filter *@
+                            @if (_groups?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0" DisableGutters="true">
+                                    <MudExpansionPanel Text="Group" IsInitiallyExpanded="true">
+                                        <MudStack Spacing="1">
+                                            @foreach (var group in _groups)
+                                            {
+                                                <MudCheckBox T="bool" 
+                                                            Value="@_selectedGroups.Contains(group)"
+                                                            ValueChanged="@((bool val) => ToggleGroupFilter(group, val))"
+                                                            Label="@group"
+                                                            Dense="true"
+                                                            Color="Color.Primary" />
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
                             }
-                            @if (_lengths != null && _lengths.Count != 0) {
-                                <SpecificationFilter @ref="_lengthFilter" SelectionChanged="LengthSelectionChanged" Title="Lengths" Specifications="_lengths" MultiSelect="true"></SpecificationFilter>
+
+                            @* Material Filter *@
+                            @if (_materials?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0" DisableGutters="true">
+                                    <MudExpansionPanel Text="Material">
+                                        <MudStack Spacing="1">
+                                            @foreach (var material in _materials)
+                                            {
+                                                <MudCheckBox T="bool" 
+                                                            Value="@_selectedMaterials.Contains(material)"
+                                                            ValueChanged="@((bool val) => ToggleMaterialFilter(material, val))"
+                                                            Label="@material"
+                                                            Dense="true"
+                                                            Color="Color.Primary" />
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
                             }
-                            @if (_shapes != null && _shapes.Count != 0) {
-                                <SpecificationFilter @ref="_shapeFilter" SelectionChanged="ShapeSelectionChanged" Title="Shapes" Specifications="_shapes" MultiSelect="true"></SpecificationFilter>
+
+                            @* Coating Filter *@
+                            @if (_coatings?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0" DisableGutters="true">
+                                    <MudExpansionPanel Text="Coating">
+                                        <MudStack Spacing="1">
+                                            @foreach (var coating in _coatings)
+                                            {
+                                                <MudCheckBox T="bool" 
+                                                            Value="@_selectedCoatings.Contains(coating)"
+                                                            ValueChanged="@((bool val) => ToggleCoatingFilter(coating, val))"
+                                                            Label="@coating"
+                                                            Dense="true"
+                                                            Color="Color.Primary" />
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
                             }
-                            @if (_materials != null && _materials.Count != 0) {
-                                <SpecificationFilter @ref="_materialFilter" SelectionChanged="MaterialSelectionChanged" Title="Materials" Specifications="_materials" MultiSelect="true"></SpecificationFilter>
+
+                            @* Thread Filter *@
+                            @if (_threads?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0" DisableGutters="true">
+                                    <MudExpansionPanel Text="Thread">
+                                        <MudStack Spacing="1">
+                                            @foreach (var thread in _threads)
+                                            {
+                                                <MudCheckBox T="bool" 
+                                                            Value="@_selectedThreads.Contains(thread)"
+                                                            ValueChanged="@((bool val) => ToggleThreadFilter(thread, val))"
+                                                            Label="@thread"
+                                                            Dense="true"
+                                                            Color="Color.Primary" />
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
                             }
-                            @if (_coatings != null && _coatings.Count != 0) {
-                                <SpecificationFilter @ref="_coatingFilter" SelectionChanged="CoatingSelectionChanged" Title="Coatings" Specifications="_coatings" MultiSelect="true"></SpecificationFilter>
+
+                            @* Spec Filter *@
+                            @if (_specs?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0" DisableGutters="true">
+                                    <MudExpansionPanel Text="Specification">
+                                        <MudStack Spacing="1">
+                                            @foreach (var spec in _specs)
+                                            {
+                                                <MudCheckBox T="bool" 
+                                                            Value="@_selectedSpecs.Contains(spec)"
+                                                            ValueChanged="@((bool val) => ToggleSpecFilter(spec, val))"
+                                                            Label="@spec"
+                                                            Dense="true"
+                                                            Color="Color.Primary" />
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
                             }
-                            @if (_threads != null && _threads.Count != 0) {
-                                <SpecificationFilter @ref="_threadFilter" SelectionChanged="ThreadSelectionChanged" Title="Threads" Specifications="_threads" MultiSelect="true"></SpecificationFilter>
+
+                            @* Diameter Filter *@
+                            @if (_diameters?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0" DisableGutters="true">
+                                    <MudExpansionPanel Text="Diameter">
+                                        <MudStack Spacing="1">
+                                            @foreach (var diameter in _diameters)
+                                            {
+                                                <MudCheckBox T="bool" 
+                                                            Value="@_selectedDiameters.Contains(diameter)"
+                                                            ValueChanged="@((bool val) => ToggleDiameterFilter(diameter, val))"
+                                                            Label="@diameter"
+                                                            Dense="true"
+                                                            Color="Color.Primary" />
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
                             }
-                            @if (_specs != null && _specs.Count != 0) {
-                                <SpecificationFilter @ref="_specFilter" SelectionChanged="SpecSelectionChanged" Title="Specifications" Specifications="_specs" MultiSelect="true"></SpecificationFilter>
+
+                            @* Length Filter *@
+                            @if (_lengths?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0" DisableGutters="true">
+                                    <MudExpansionPanel Text="Length">
+                                        <MudStack Spacing="1">
+                                            @foreach (var length in _lengths)
+                                            {
+                                                <MudCheckBox T="bool" 
+                                                            Value="@_selectedLengths.Contains(length)"
+                                                            ValueChanged="@((bool val) => ToggleLengthFilter(length, val))"
+                                                            Label="@length"
+                                                            Dense="true"
+                                                            Color="Color.Primary" />
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
+                            }
+
+                            @* Shape Filter *@
+                            @if (_shapes?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0" DisableGutters="true">
+                                    <MudExpansionPanel Text="Shape">
+                                        <MudStack Spacing="1">
+                                            @foreach (var shape in _shapes)
+                                            {
+                                                <MudCheckBox T="bool" 
+                                                            Value="@_selectedShapes.Contains(shape)"
+                                                            ValueChanged="@((bool val) => ToggleShapeFilter(shape, val))"
+                                                            Label="@shape"
+                                                            Dense="true"
+                                                            Color="Color.Primary" />
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
                             }
                         </MudStack>
                     </MudPaper>
@@ -172,14 +336,6 @@
     private List<string> _selectedSpecs = new List<string>();
     private List<string> _selectedLengths = new List<string>();
     private List<string> _selectedDiameters = new List<string>();
-    private SpecificationFilter _groupFilter;
-    private SpecificationFilter _shapeFilter;
-    private SpecificationFilter _materialFilter;
-    private SpecificationFilter _coatingFilter;
-    private SpecificationFilter _threadFilter;
-    private SpecificationFilter _specFilter;
-    private SpecificationFilter _lengthFilter;
-    private SpecificationFilter _diameterFilter;
 
 
     private string Status
@@ -349,52 +505,140 @@
         }
         
         _itemsToShow = _itemsToShow.OrderBy(i => _allDiameters.Where(d => d.Id == i.DiameterId).FirstOrDefault()?.Value).ToList();
+        
+        // Update available filter options based on filtered results
+        UpdateAvailableFilterOptions();
+    }
+    
+    private void UpdateAvailableFilterOptions()
+    {
+        // Get currently filtered items (excluding the filter type we're updating to show available options)
+        var baseFilteredItems = _items;
+        
+        // Apply all filters to get base filtered set
+        if (_selectedClasses.Any()) 
+            baseFilteredItems = baseFilteredItems.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null))).ToList();
+        if (_selectedGroups.Any()) 
+            baseFilteredItems = baseFilteredItems.Where(i => _selectedGroups.Any(g => g == i.GroupName || (g == "No Group" && i.GroupName == null))).ToList();
+        if (_selectedShapes.Any()) 
+            baseFilteredItems = baseFilteredItems.Where(i => _selectedShapes.Any(s => s == i.ShapeName || (s == "No Shape" && i.ShapeName == null))).ToList();
+        if (_selectedMaterials.Any()) 
+            baseFilteredItems = baseFilteredItems.Where(i => _selectedMaterials.Any(s => s == i.MaterialName || (s == "No Material" && i.MaterialName == null))).ToList();
+        if (_selectedCoatings.Any()) 
+            baseFilteredItems = baseFilteredItems.Where(i => _selectedCoatings.Any(s => s == i.CoatingName || (s == "No Coating" && i.CoatingName == null))).ToList();
+        if (_selectedThreads.Any()) 
+            baseFilteredItems = baseFilteredItems.Where(i => _selectedThreads.Any(s => s == i.ThreadName || (s == "No Thread" && i.ThreadName == null))).ToList();
+        if (_selectedSpecs.Any()) 
+            baseFilteredItems = baseFilteredItems.Where(i => _selectedSpecs.Any(s => s == i.SpecName || (s == "No Spec" && i.SpecName == null))).ToList();
+        if (_selectedLengths.Any()) 
+            baseFilteredItems = baseFilteredItems.Where(i => _selectedLengths.Any(l => l == i.LengthName || (l == "No Length" && i.LengthName == null))).ToList();
+        if (_selectedDiameters.Any()) 
+            baseFilteredItems = baseFilteredItems.Where(i => _selectedDiameters.Any(d => d == i.DiameterName || (d == "No Diameter" && i.DiameterName == null))).ToList();
+        
+        // Update each filter list to show only options that exist in baseFilteredItems
+        _classes = baseFilteredItems.Select(x => x.ClassName ?? "Uncategorized").Distinct().OrderBy(c => c).ToList();
+        _groups = baseFilteredItems.Select(x => x.GroupName ?? "No Group").Distinct().OrderBy(c => c).ToList();
+        _materials = baseFilteredItems.Select(x => x.MaterialName ?? "No Material").Distinct().OrderBy(m => m).ToList();
+        _shapes = baseFilteredItems.Select(x => x.ShapeName ?? "No Shape").Distinct().OrderBy(s => s).ToList();
+        _coatings = baseFilteredItems.Select(x => x.CoatingName ?? "No Coating").Distinct().OrderBy(c => c).ToList();
+        _threads = baseFilteredItems.Select(x => x.ThreadName ?? "No Thread").Distinct().OrderBy(t => t).ToList();
+        _specs = baseFilteredItems.Select(x => x.SpecName ?? "No Spec").Distinct().OrderBy(s => s).ToList();
+        
+        _lengths = baseFilteredItems
+            .Where(c => c.LengthId.HasValue)
+            .Join(_allLengths, c => c.LengthId, l => l.Id, (c, l) => new { Name = c.LengthName, Value = l.Value })
+            .OrderBy(x => x.Value)
+            .Select(x => x.Name).Distinct()
+            .Concat(new[] { "No Length" })
+            .ToList();
+            
+        _diameters = baseFilteredItems
+            .Where(c => c.DiameterId.HasValue)
+            .Join(_allDiameters, c => c.DiameterId, d => d.Id, (c, d) => new { Name = c.DiameterName, Value = d.Value })
+            .OrderBy(x => x.Value)
+            .Select(x => x.Name).Distinct()
+            .Concat(new[] { "No Diameter" })
+            .ToList();
+    }
+    
+    private bool HasActiveFilters()
+    {
+        return _selectedClasses.Any() || _selectedGroups.Any() || _selectedMaterials.Any() || 
+               _selectedCoatings.Any() || _selectedDiameters.Any() || _selectedLengths.Any() ||
+               _selectedShapes.Any() || _selectedThreads.Any() || _selectedSpecs.Any();
+    }
+
+    private void ClearAllFilters()
+    {
+        _selectedClasses.Clear();
+        _selectedGroups.Clear();
+        _selectedShapes.Clear();
+        _selectedMaterials.Clear();
+        _selectedCoatings.Clear();
+        _selectedThreads.Clear();
+        _selectedSpecs.Clear();
+        _selectedDiameters.Clear();
+        _selectedLengths.Clear();
+        Filter();
+    }
+    
+    private void ToggleClassFilter(string cls, bool add)
+    {
+        if (add) _selectedClasses.Add(cls); else _selectedClasses.Remove(cls);
+        Filter();
+    }
+
+    private void ToggleGroupFilter(string group, bool add)
+    {
+        if (add) _selectedGroups.Add(group); else _selectedGroups.Remove(group);
+        Filter();
+    }
+
+    private void ToggleMaterialFilter(string material, bool add)
+    {
+        if (add) _selectedMaterials.Add(material); else _selectedMaterials.Remove(material);
+        Filter();
+    }
+
+    private void ToggleCoatingFilter(string coating, bool add)
+    {
+        if (add) _selectedCoatings.Add(coating); else _selectedCoatings.Remove(coating);
+        Filter();
+    }
+    
+    private void ToggleThreadFilter(string thread, bool add)
+    {
+        if (add) _selectedThreads.Add(thread); else _selectedThreads.Remove(thread);
+        Filter();
+    }
+    
+    private void ToggleSpecFilter(string spec, bool add)
+    {
+        if (add) _selectedSpecs.Add(spec); else _selectedSpecs.Remove(spec);
+        Filter();
+    }
+
+    private void ToggleDiameterFilter(string diameter, bool add)
+    {
+        if (add) _selectedDiameters.Add(diameter); else _selectedDiameters.Remove(diameter);
+        Filter();
+    }
+
+    private void ToggleLengthFilter(string length, bool add)
+    {
+        if (add) _selectedLengths.Add(length); else _selectedLengths.Remove(length);
+        Filter();
+    }
+    
+    private void ToggleShapeFilter(string shape, bool add)
+    {
+        if (add) _selectedShapes.Add(shape); else _selectedShapes.Remove(shape);
+        Filter();
     }
 
     private async Task ClassSelectionChanged(List<string> selections) {
+        // This method is kept for backward compatibility but now uses the same logic as toggle filters
         _selectedClasses = selections;
-        if (_selectedClasses.Count > 0) {
-            _groups.Clear();
-            _groups = _items.Where(i => _selectedClasses.Any(c => c == i.ClassName || (c == "Uncategorized" && i.ClassName == null))).Select(x => x.GroupName ?? "No Group").Distinct().OrderBy(c => c.ToString()).ToList();
-            _shapes = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null))).Select(x => x.ShapeName ?? "No Shape").Distinct().OrderBy(c => c.ToString()).ToList();
-            //diameters
-            //lengths
-            _materials = _items.Where(i => _selectedClasses.Any(m => m == i.ClassName || (m == "Uncategorized" && i.ClassName == null))).Select(x => x.MaterialName ?? "No Material").Distinct().OrderBy(c => c.ToString()).ToList();//materials
-            _coatings = _items.Where(i => _selectedClasses.Any(c => c == i.ClassName || (c == "Uncategorized" && i.ClassName == null))).Select(x => x.CoatingName ?? "No Coating").Distinct().OrderBy(c => c.ToString()).ToList();//coatings
-            _threads = _items.Where(i => _selectedClasses.Any(t => t == i.ClassName || (t == "Uncategorized" && i.ClassName == null))).Select(x => x.ThreadName ?? "No Thread").Distinct().OrderBy(c => c.ToString()).ToList();//threads
-            _specs = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null))).Select(x => x.SpecName ?? "No Spec").Distinct().OrderBy(c => c.ToString()).ToList();//Specs
-            _lengths = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null)))
-                .Where(c => c.LengthId.HasValue)
-                .Join(_allLengths, c => c.LengthId, l => l.Id, (c, l) => new { Name = $"{c.LengthName}", Value = $"{l.Value}" })
-                .OrderBy(x => x.Value)
-                .Select(x => x.Name).Distinct()
-                .Concat(new[] { "No Length" })
-                .ToList();
-            _diameters = _items.Where(i => _selectedClasses.Any(s => s == i.ClassName || (s == "Uncategorized" && i.ClassName == null)))
-                .Where(c => c.DiameterId.HasValue)
-                .Join(_allDiameters, c => c.DiameterId, d => d.Id, (c, d) => new { Name = $"{c.DiameterName}", Value = $"{d.Value}" })
-                .OrderBy(x => x.Value)
-                .Select(x => x.Name).Distinct()
-                .Concat(new[] { "No Diameter" })
-                .ToList();
-            _groupFilter.UpdateSpecificaitonList(_groups);
-            _shapeFilter.UpdateSpecificaitonList(_shapes);
-            _materialFilter.UpdateSpecificaitonList(_materials);
-            _coatingFilter.UpdateSpecificaitonList(_coatings);
-            _threadFilter.UpdateSpecificaitonList(_threads);
-            _specFilter.UpdateSpecificaitonList(_specs);
-            _lengthFilter.UpdateSpecificaitonList(_lengths);
-            _diameterFilter.UpdateSpecificaitonList(_diameters);
-            _selectedGroups = new List<string>();
-            _selectedShapes = new List<string>();
-            _selectedMaterials = new List<string>();
-            _selectedCoatings = new List<string>();
-            _selectedThreads = new List<string>();
-            _selectedSpecs = new List<string>();
-            _selectedLengths = new List<string>();
-            _selectedDiameters = new List<string>();
-
-        }
         Filter();
     }
 

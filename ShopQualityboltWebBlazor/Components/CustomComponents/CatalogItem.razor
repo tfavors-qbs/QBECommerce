@@ -6,18 +6,106 @@
 
 <MudPaper Class="pa-4 mb-3" Elevation="2">
     <MudGrid>
-        <MudItem xs="12" sm="12" md="12" lg="8" xl="10">
-            <MudGrid>
-                <MudItem xs="3"><MudText Align="Align.Left">Customer Stk No:</MudText></MudItem>
-                <MudItem xs="9"><MudText Align="Align.Left">@Item?.CustomerStkNo</MudText></MudItem>
-                <MudItem xs="3"><MudText Align="Align.Left">Description</MudText></MudItem>
-                <MudItem xs="9"><MudText Align="Align.Left">@Item?.Description</MudText></MudItem>
-            </MudGrid>
+        <MudItem xs="12" sm="12" md="12" lg="9" xl="10">
+            <MudStack Spacing="3">
+                @* Header with Stock Number and Price *@
+                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                    <MudStack Row="false" Spacing="0">
+                        <MudText Typo="Typo.h6" Color="Color.Primary">@Item?.CustomerStkNo</MudText>
+                        @if (!string.IsNullOrEmpty(Item?.SKUName))
+                        {
+                            <MudChip T="string" Text="@Item.SKUName" Size="Size.Small" Color="Color.Info" />
+                        }
+                    </MudStack>
+                    <MudText Typo="Typo.h5" Color="Color.Primary">@Item?.Price.ToString("C")</MudText>
+                </MudStack>
+                
+                @* Description *@
+                <MudText Typo="Typo.body1">@Item?.Description</MudText>
+                
+                @* Specifications with Icons *@
+                <MudStack Row="true" Spacing="4" Wrap="Wrap.Wrap">
+                    @if (!string.IsNullOrEmpty(Item?.ClassName) && Item.ClassName != "Uncategorized")
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Category" Size="Size.Small" Color="Color.Primary" />
+                            <MudText Typo="Typo.body2"><strong>Class:</strong> @Item.ClassName</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(Item?.GroupName) && Item.GroupName != "No Group")
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Inventory" Size="Size.Small" Color="Color.Secondary" />
+                            <MudText Typo="Typo.body2"><strong>Group:</strong> @Item.GroupName</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(Item?.DiameterName) && Item.DiameterName != "No Diameter")
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Circle" Size="Size.Small" Color="Color.Tertiary" />
+                            <MudText Typo="Typo.body2"><strong>Diameter:</strong> @Item.DiameterName</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(Item?.LengthName) && Item.LengthName != "No Length")
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Straighten" Size="Size.Small" Color="Color.Info" />
+                            <MudText Typo="Typo.body2"><strong>Length:</strong> @Item.LengthName</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(Item?.MaterialName) && Item.MaterialName != "No Material")
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Science" Size="Size.Small" Color="Color.Success" />
+                            <MudText Typo="Typo.body2"><strong>Material:</strong> @Item.MaterialName</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(Item?.CoatingName) && Item.CoatingName != "No Coating")
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Brush" Size="Size.Small" Color="Color.Warning" />
+                            <MudText Typo="Typo.body2"><strong>Coating:</strong> @Item.CoatingName</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(Item?.ThreadName) && Item.ThreadName != "No Thread")
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" Color="Color.Error" />
+                            <MudText Typo="Typo.body2"><strong>Thread:</strong> @Item.ThreadName</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(Item?.ShapeName) && Item.ShapeName != "No Shape")
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Architecture" Size="Size.Small" Color="Color.Dark" />
+                            <MudText Typo="Typo.body2"><strong>Shape:</strong> @Item.ShapeName</MudText>
+                        </MudStack>
+                    }
+                    @if (!string.IsNullOrEmpty(Item?.SpecName) && Item.SpecName != "No Spec")
+                    {
+                        <MudStack Row="true" Spacing="1" AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.Description" Size="Size.Small" Color="Color.Default" />
+                            <MudText Typo="Typo.body2"><strong>Spec:</strong> @Item.SpecName</MudText>
+                        </MudStack>
+                    }
+                </MudStack>
+            </MudStack>
         </MudItem>
-        <MudItem xs="12" sm="12" md="12" lg="4" xl="2">
-            <MudStack>
-                <MudNumericField Disabled="IsReadOnly" Min="@(_isExistingItemInCart ? 0 : 1)" Variant="Variant.Outlined" @bind-Value="@OrderQuantity"></MudNumericField>
-                <MudButton Disabled="_isSameQtyAsCart || IsReadOnly" StartIcon="@Icons.Material.TwoTone.AddShoppingCart" Variant="Variant.Filled" Color="@(_isExistingItemInCart ? OrderQuantity == 0 ? Color.Error : Color.Warning : Color.Tertiary)" OnClick="UpdateItemToCart">@_editButtonText</MudButton>
+        <MudItem xs="12" sm="12" md="12" lg="3" xl="2">
+            <MudStack Spacing="2" Justify="Justify.Center" Style="height: 100%;">
+                <MudNumericField Disabled="IsReadOnly" 
+                                Min="@(_isExistingItemInCart ? 0 : 1)" 
+                                Variant="Variant.Outlined" 
+                                @bind-Value="@OrderQuantity"
+                                Label="Quantity"></MudNumericField>
+                <MudButton Disabled="_isSameQtyAsCart || IsReadOnly" 
+                          StartIcon="@Icons.Material.TwoTone.AddShoppingCart" 
+                          Variant="Variant.Filled" 
+                          Color="@(_isExistingItemInCart ? OrderQuantity == 0 ? Color.Error : Color.Warning : Color.Primary)" 
+                          OnClick="UpdateItemToCart"
+                          FullWidth="true">
+                    @_editButtonText
+                </MudButton>
             </MudStack>
         </MudItem>
     </MudGrid>
