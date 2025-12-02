@@ -366,11 +366,12 @@
                 {
                     debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] ERROR: POST failed with status {result.StatusCode}");
                     
-                    // Show detailed error with full debug info
+                    // Show detailed error with full debug info including cXML that was sent
                     await ShowDebugError("PunchOut POST Failed", 
                         $"Failed to send punch out order. Status: {(int)result.StatusCode} ({result.StatusCode})", 
                         debugInfo,
-                        responseContent);
+                        responseContent,
+                        orderMessage);
                     
                     isLoading = false;
                     StateHasChanged();
@@ -427,7 +428,7 @@
         }
     }
     
-    private async Task ShowDebugError(string title, string message, List<string> debugInfo, string? responseContent = null)
+    private async Task ShowDebugError(string title, string message, List<string> debugInfo, string? responseContent = null, string? sentCxmlContent = null)
     {
         // Send error log to server for persistence (production debugging)
         try
@@ -447,6 +448,7 @@
                     StatusCode = statusCode,
                     DebugSteps = debugInfo,
                     ResponseContent = responseContent,
+                    SentCxmlContent = sentCxmlContent,
                     CartItemCount = ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Count ?? 0,
                     TotalAmount = totalPrice
                 },
