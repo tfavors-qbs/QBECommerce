@@ -29,6 +29,7 @@
             <MudIconButton Icon="@Icons.Material.Filled.Menu" @onclick="DrawerToggle" />
         }
         <MudSpacer />
+        <MudIconButton Icon="@DarkLightModeButtonIcon" Color="Color.Inherit" @onclick="DarkModeToggle" />
         <AuthorizeView>
             <Authorized>
                 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="0">
@@ -78,18 +79,20 @@
                 },
                 PaletteDark = new PaletteDark()
                 {
-                    Primary = "#366D88",
-                    Secondary = "#2B5670",
-                    Tertiary = "#4A86A0",
-                    Info = "#5BA0C8",
-                    Success = "#28A745",
-                    Warning = "#FFA500",
-                    Error = "#DC143C",
-                    AppbarBackground = "#2B5670",
-                    Background = "#1A1A1A",
-                    BackgroundGray = "#2D2D2D",
-                    Surface = "#252525",
-                    DrawerBackground = "#252525",
+                    Primary = "#4A9AB8", // Lighter blue for dark mode visibility
+                    Secondary = "#5DB3D1", // Brighter secondary
+                    Tertiary = "#3A7A92", // Muted teal
+                    Info = "#7CC5E8", // Brighter info blue
+                    Success = "#4CAF50",
+                    Warning = "#FFB74D",
+                    Error = "#F44336",
+                    AppbarBackground = "#2C3E50", // Lighter blue-grey
+                    Background = "#1E2A35", // Lighter dark blue-grey
+                    BackgroundGray = "#2C3E50", // Medium blue-grey
+                    Surface = "#2C3E50", // Card/paper surface
+                    DrawerBackground = "#2C3E50",
+                    TextPrimary = "#E8EBED", // Light text
+                    TextSecondary = "#B0B8C0", // Muted text
                 },
                 LayoutProperties = new LayoutProperties()
             };
