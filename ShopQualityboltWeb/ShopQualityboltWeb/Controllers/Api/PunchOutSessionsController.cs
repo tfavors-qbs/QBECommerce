@@ -77,9 +77,30 @@ namespace ShopQualityboltWeb.Controllers.Api
                 // Deserialize cXML
                 var serializer = new XmlSerializer(typeof(cXML));
 				cXML cxmlRequest;
-				using (var stringReader = new StringReader(cxmlString))
+				try
 				{
-					cxmlRequest = (cXML)serializer.Deserialize(stringReader);
+					using (var stringReader = new StringReader(cxmlString))
+					{
+						cxmlRequest = (cXML)serializer.Deserialize(stringReader);
+					}
+				}
+				catch (Exception deserializeEx)
+				{
+					await _errorLogService.LogErrorAsync(
+						"PunchOut Setup Error",
+						"Failed to Deserialize cXML",
+						"XML deserialization failed - invalid or malformed cXML",
+						deserializeEx,
+						additionalData: new { 
+							cxmlContent = cxmlString,
+							cxmlLength = cxmlString?.Length ?? 0
+						},
+						requestUrl: HttpContext.Request.Path,
+						httpMethod: HttpContext.Request.Method,
+						statusCode: 400);
+					
+					_logger.LogError(deserializeEx, "Failed to deserialize cXML. Length: {Length}", cxmlString?.Length ?? 0);
+					return BadRequest(CreateErrorResponse("400", $"Invalid cXML format: {deserializeEx.Message}"));
 				}
 
 				// Find Header and Request in Items
@@ -104,7 +125,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 						"PunchOut Setup Error",
 						"Invalid PunchOutSetupRequest",
 						"Missing or invalid PunchOutSetupRequest in cXML",
-						additionalData: new { cxmlContent = cxmlString?.Substring(0, Math.Min(500, cxmlString?.Length ?? 0)) },
+						additionalData: new { cxmlContent = cxmlString },
 						requestUrl: HttpContext.Request.Path,
 						httpMethod: HttpContext.Request.Method,
 						statusCode: 400);
@@ -118,7 +139,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 						"PunchOut Setup Error",
 						"Invalid Header Identity",
 						"Missing or invalid From identity in header",
-						additionalData: new { header = header },
+						additionalData: new { cxmlContent = cxmlString },
 						requestUrl: HttpContext.Request.Path,
 						httpMethod: HttpContext.Request.Method,
 						statusCode: 400);
@@ -133,7 +154,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 						"PunchOut Setup Error",
 						"Invalid Credentials",
 						"Missing or invalid shared secret credential",
-						additionalData: new { hasHeader = header != null, hasCredential = credential != null },
+						additionalData: new { cxmlContent = cxmlString },
 						requestUrl: HttpContext.Request.Path,
 						httpMethod: HttpContext.Request.Method,
 						statusCode: 400);
@@ -148,6 +169,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 						"PunchOut Setup Error",
 						"Invalid Ariba Credential",
 						"Missing or invalid Ariba ID",
+						additionalData: new { cxmlContent = cxmlString },
 						requestUrl: HttpContext.Request.Path,
 						httpMethod: HttpContext.Request.Method,
 						statusCode: 400);
@@ -164,7 +186,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 						"PunchOut Setup Error",
 						"Missing Shared Secret",
 						"Shared secret not provided or not configured",
-						additionalData: new { hasProvidedSecret = !string.IsNullOrEmpty(sharedSecretValue), hasConfiguredSecret = !string.IsNullOrEmpty(expectedSharedSecret) },
+						additionalData: new { cxmlContent = cxmlString },
 						requestUrl: HttpContext.Request.Path,
 						httpMethod: HttpContext.Request.Method,
 						statusCode: 401);
@@ -177,6 +199,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 						"PunchOut Setup Error",
 						"Invalid Shared Secret",
 						"Provided shared secret does not match expected value",
+						additionalData: new { cxmlContent = cxmlString },
 						requestUrl: HttpContext.Request.Path,
 						httpMethod: HttpContext.Request.Method,
 						statusCode: 401);
@@ -197,6 +220,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 						"PunchOut Setup Error",
 						"Missing Email",
 						"User email not found in PunchOut request",
+						additionalData: new { cxmlContent = cxmlString },
 						requestUrl: HttpContext.Request.Path,
 						httpMethod: HttpContext.Request.Method,
 						statusCode: 400);
@@ -292,7 +316,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 						"PunchOut Setup Error",
 						"User Not Found",
 						$"No user found for email: {email}",
-						additionalData: new { email },
+						additionalData: new { email, cxmlContent = cxmlString },
 						requestUrl: HttpContext.Request.Path,
 						httpMethod: HttpContext.Request.Method,
 						statusCode: 400);
@@ -305,7 +329,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 						"PunchOut Setup Error",
 						"Ariba ID Mismatch",
 						$"Ariba ID {aribaId} does not match user's Ariba ID",
-						additionalData: new { providedAribaId = aribaId, userAribaId = user.AribaId, email },
+						additionalData: new { providedAribaId = aribaId, userAribaId = user.AribaId, email, cxmlContent = cxmlString },
 						userId: user.Id,
 						userEmail: user.Email,
 						requestUrl: HttpContext.Request.Path,
@@ -324,7 +348,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 							"PunchOut Setup Error",
 							"Shopping Cart Not Found",
 							"Could not find user's shopping cart for edit operation",
-							additionalData: new { operation = punchOutSetupRequest.operation.ToString(), userId = user.Id },
+							additionalData: new { operation = punchOutSetupRequest.operation.ToString(), userId = user.Id, cxmlContent = cxmlString },
 							userId: user.Id,
 							userEmail: user.Email,
 							requestUrl: HttpContext.Request.Path,
