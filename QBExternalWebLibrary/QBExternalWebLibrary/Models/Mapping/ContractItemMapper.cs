@@ -131,6 +131,7 @@ namespace QBExternalWebLibrary.Models.Mapping {
                     Price = view.Price,
                     ClientId = view.ClientId,
                     SKUId = view.SKUId,
+                    ProductIDId = view.ProductIDId,
                     DiameterId = view.DiameterId,
                     LengthId = view.LengthId,
                     NonStock = view.NonStock,
@@ -145,6 +146,7 @@ namespace QBExternalWebLibrary.Models.Mapping {
                 contractItem.Price = view.Price;
                 contractItem.ClientId = view.ClientId;
                 contractItem.SKUId = view.SKUId;
+                contractItem.ProductIDId = view.ProductIDId;
                 contractItem.DiameterId = view.DiameterId;
                 contractItem.LengthId = view.LengthId;
                 contractItem.NonStock = view.NonStock;
@@ -153,8 +155,9 @@ namespace QBExternalWebLibrary.Models.Mapping {
                 contractItem.Length = _lengthRepository.GetById(view.LengthId);
             }
             if (view.NonStock) {
-                contractItem.SKUId = null;
-                contractItem.SKU = null;
+                // Don't set SKUId to null - keep it as #XN for non-stock items
+                // contractItem.SKUId = null;
+                // contractItem.SKU = null;
             } else {
                 contractItem.LengthId = contractItem.SKU.LengthId;
                 contractItem.DiameterId = contractItem.SKU.DiameterId;

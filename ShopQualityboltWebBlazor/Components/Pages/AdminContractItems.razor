@@ -133,82 +133,46 @@
 
             <MudGrid Class="mb-4">
                 <MudItem xs="12" md="4">
-                    <MudSelect T="int?" @bind-Value="selectedGroupId" Label="Group" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" @bind-Value="selectedGroupId" Label="Group" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
-                               OnClearButtonClick="@(() => selectedGroupId = null)">
-                        @if (groups != null)
-                        {
-                            foreach (var group in groups)
-                            {
-                                <MudSelectItem Value="@((int?)group.Id)">@group.DisplayName</MudSelectItem>
-                            }
-                        }
-                    </MudSelect>
+                               SearchFunc="@SearchGroups" ToStringFunc="@(id => GetGroupDisplayName(id))"
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                    </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudSelect T="int?" @bind-Value="selectedShapeId" Label="Shape" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" @bind-Value="selectedShapeId" Label="Shape" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
-                               OnClearButtonClick="@(() => selectedShapeId = null)">
-                        @if (shapes != null)
-                        {
-                            foreach (var shape in shapes)
-                            {
-                                <MudSelectItem Value="@((int?)shape.Id)">@shape.DisplayName</MudSelectItem>
-                            }
-                        }
-                    </MudSelect>
+                               SearchFunc="@SearchShapes" ToStringFunc="@(id => GetShapeDisplayName(id))"
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                    </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudSelect T="int?" @bind-Value="selectedMaterialId" Label="Material" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" @bind-Value="selectedMaterialId" Label="Material" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
-                               OnClearButtonClick="@(() => selectedMaterialId = null)">
-                        @if (materials != null)
-                        {
-                            foreach (var material in materials)
-                            {
-                                <MudSelectItem Value="@((int?)material.Id)">@material.DisplayName</MudSelectItem>
-                            }
-                        }
-                    </MudSelect>
+                               SearchFunc="@SearchMaterials" ToStringFunc="@(id => GetMaterialDisplayName(id))"
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                    </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudSelect T="int?" @bind-Value="selectedCoatingId" Label="Coating" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" @bind-Value="selectedCoatingId" Label="Coating" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
-                               OnClearButtonClick="@(() => selectedCoatingId = null)">
-                        @if (coatings != null)
-                        {
-                            foreach (var coating in coatings)
-                            {
-                                <MudSelectItem Value="@((int?)coating.Id)">@coating.DisplayName</MudSelectItem>
-                            }
-                        }
-                    </MudSelect>
+                               SearchFunc="@SearchCoatings" ToStringFunc="@(id => GetCoatingDisplayName(id))"
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                    </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudSelect T="int?" @bind-Value="selectedThreadId" Label="Thread" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" @bind-Value="selectedThreadId" Label="Thread" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
-                               OnClearButtonClick="@(() => selectedThreadId = null)">
-                        @if (threads != null)
-                        {
-                            foreach (var thread in threads)
-                            {
-                                <MudSelectItem Value="@((int?)thread.Id)">@thread.DisplayName</MudSelectItem>
-                            }
-                        }
-                    </MudSelect>
+                               SearchFunc="@SearchThreads" ToStringFunc="@(id => GetThreadDisplayName(id))"
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                    </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudSelect T="int?" @bind-Value="selectedSpecId" Label="Spec" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" @bind-Value="selectedSpecId" Label="Spec" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
-                               OnClearButtonClick="@(() => selectedSpecId = null)">
-                        @if (specs != null)
-                        {
-                            foreach (var spec in specs)
-                            {
-                                <MudSelectItem Value="@((int?)spec.Id)">@spec.DisplayName</MudSelectItem>
-                            }
-                        }
-                    </MudSelect>
+                               SearchFunc="@SearchSpecs" ToStringFunc="@(id => GetSpecDisplayName(id))"
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                    </MudAutocomplete>
                 </MudItem>
             </MudGrid>
 
@@ -563,5 +527,121 @@
         {
             Snackbar.Add($"Error assigning ProductID: {ex.Message}", Severity.Error);
         }
+    }
+
+    // Autocomplete search functions
+    private async Task<IEnumerable<int?>> SearchGroups(string value, CancellationToken token)
+    {
+        await Task.CompletedTask;
+        
+        if (string.IsNullOrEmpty(value))
+            return groups.OrderBy(g => g.DisplayName).Select(g => (int?)g.Id);
+        
+        return groups
+            .Where(g => g.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(g => g.DisplayName)
+            .Select(g => (int?)g.Id);
+    }
+
+    private async Task<IEnumerable<int?>> SearchShapes(string value, CancellationToken token)
+    {
+        await Task.CompletedTask;
+        
+        if (string.IsNullOrEmpty(value))
+            return shapes.OrderBy(s => s.DisplayName).Select(s => (int?)s.Id);
+        
+        return shapes
+            .Where(s => s.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.DisplayName)
+            .Select(s => (int?)s.Id);
+    }
+
+    private async Task<IEnumerable<int?>> SearchMaterials(string value, CancellationToken token)
+    {
+        await Task.CompletedTask;
+        
+        if (string.IsNullOrEmpty(value))
+            return materials.OrderBy(m => m.DisplayName).Select(m => (int?)m.Id);
+        
+        return materials
+            .Where(m => m.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(m => m.DisplayName)
+            .Select(m => (int?)m.Id);
+    }
+
+    private async Task<IEnumerable<int?>> SearchCoatings(string value, CancellationToken token)
+    {
+        await Task.CompletedTask;
+        
+        if (string.IsNullOrEmpty(value))
+            return coatings.OrderBy(c => c.DisplayName).Select(c => (int?)c.Id);
+        
+        return coatings
+            .Where(c => c.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(c => c.DisplayName)
+            .Select(c => (int?)c.Id);
+    }
+
+    private async Task<IEnumerable<int?>> SearchThreads(string value, CancellationToken token)
+    {
+        await Task.CompletedTask;
+        
+        if (string.IsNullOrEmpty(value))
+            return threads.OrderBy(t => t.DisplayName).Select(t => (int?)t.Id);
+        
+        return threads
+            .Where(t => t.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(t => t.DisplayName)
+            .Select(t => (int?)t.Id);
+    }
+
+    private async Task<IEnumerable<int?>> SearchSpecs(string value, CancellationToken token)
+    {
+        await Task.CompletedTask;
+        
+        if (string.IsNullOrEmpty(value))
+            return specs.OrderBy(s => s.DisplayName).Select(s => (int?)s.Id);
+        
+        return specs
+            .Where(s => s.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(s => s.DisplayName)
+            .Select(s => (int?)s.Id);
+    }
+
+    // Display name functions for autocomplete
+    private string GetGroupDisplayName(int? id)
+    {
+        if (!id.HasValue) return string.Empty;
+        return groups.FirstOrDefault(g => g.Id == id.Value)?.DisplayName ?? string.Empty;
+    }
+
+    private string GetShapeDisplayName(int? id)
+    {
+        if (!id.HasValue) return string.Empty;
+        return shapes.FirstOrDefault(s => s.Id == id.Value)?.DisplayName ?? string.Empty;
+    }
+
+    private string GetMaterialDisplayName(int? id)
+    {
+        if (!id.HasValue) return string.Empty;
+        return materials.FirstOrDefault(m => m.Id == id.Value)?.DisplayName ?? string.Empty;
+    }
+
+    private string GetCoatingDisplayName(int? id)
+    {
+        if (!id.HasValue) return string.Empty;
+        return coatings.FirstOrDefault(c => c.Id == id.Value)?.DisplayName ?? string.Empty;
+    }
+
+    private string GetThreadDisplayName(int? id)
+    {
+        if (!id.HasValue) return string.Empty;
+        return threads.FirstOrDefault(t => t.Id == id.Value)?.DisplayName ?? string.Empty;
+    }
+
+    private string GetSpecDisplayName(int? id)
+    {
+        if (!id.HasValue) return string.Empty;
+        return specs.FirstOrDefault(s => s.Id == id.Value)?.DisplayName ?? string.Empty;
     }
 }
