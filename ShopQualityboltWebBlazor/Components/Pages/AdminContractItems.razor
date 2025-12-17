@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using QBExternalWebLibrary.Models.Products
+@using ThreadModel = QBExternalWebLibrary.Models.Products.Thread
 @using System.Net.Http.Json
 @using ShopQualityboltWebBlazor.Components.CustomComponents
 @using Microsoft.AspNetCore.WebUtilities
@@ -17,6 +18,7 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 @inject IHttpClientFactory HttpClientFactory
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Contract Items Management</PageTitle>
 
@@ -133,45 +135,59 @@
 
             <MudGrid Class="mb-4">
                 <MudItem xs="12" md="4">
-                    <MudAutocomplete T="int?" @bind-Value="selectedGroupId" Label="Group" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" Value="@selectedClassId" Label="Class" Variant="Variant.Outlined" 
+                               Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
+                               SearchFunc="@SearchClasses" ToStringFunc="@(id => GetClassDisplayName(id))"
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true" MaxItems="null"
+                               ValueChanged="@OnClassChanged">
+                    </MudAutocomplete>
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudAutocomplete T="int?" Value="@selectedGroupId" Label="Group" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
                                SearchFunc="@SearchGroups" ToStringFunc="@(id => GetGroupDisplayName(id))"
-                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true" MaxItems="null"
+                               ValueChanged="@OnGroupChanged">
                     </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudAutocomplete T="int?" @bind-Value="selectedShapeId" Label="Shape" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" Value="@selectedShapeId" Label="Shape" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
                                SearchFunc="@SearchShapes" ToStringFunc="@(id => GetShapeDisplayName(id))"
-                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true" MaxItems="null"
+                               ValueChanged="@OnShapeChanged">
                     </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudAutocomplete T="int?" @bind-Value="selectedMaterialId" Label="Material" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" Value="@selectedMaterialId" Label="Material" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
                                SearchFunc="@SearchMaterials" ToStringFunc="@(id => GetMaterialDisplayName(id))"
-                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true" MaxItems="null"
+                               ValueChanged="@OnMaterialChanged">
                     </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudAutocomplete T="int?" @bind-Value="selectedCoatingId" Label="Coating" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" Value="@selectedCoatingId" Label="Coating" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
                                SearchFunc="@SearchCoatings" ToStringFunc="@(id => GetCoatingDisplayName(id))"
-                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true" MaxItems="null"
+                               ValueChanged="@OnCoatingChanged">
                     </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudAutocomplete T="int?" @bind-Value="selectedThreadId" Label="Thread" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" Value="@selectedThreadId" Label="Thread" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
                                SearchFunc="@SearchThreads" ToStringFunc="@(id => GetThreadDisplayName(id))"
-                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true" MaxItems="null"
+                               ValueChanged="@OnThreadChanged">
                     </MudAutocomplete>
                 </MudItem>
                 <MudItem xs="12" md="4">
-                    <MudAutocomplete T="int?" @bind-Value="selectedSpecId" Label="Spec" Variant="Variant.Outlined" 
+                    <MudAutocomplete T="int?" Value="@selectedSpecId" Label="Spec" Variant="Variant.Outlined" 
                                Clearable="true" AdornmentIcon="@Icons.Material.Filled.Category" AdornmentColor="Color.Primary"
                                SearchFunc="@SearchSpecs" ToStringFunc="@(id => GetSpecDisplayName(id))"
-                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true">
+                               CoerceText="false" CoerceValue="true" ResetValueOnEmptyText="true" MaxItems="null"
+                               ValueChanged="@OnSpecChanged">
                     </MudAutocomplete>
                 </MudItem>
             </MudGrid>
@@ -285,13 +301,15 @@
     // Non-stock items management
     private List<ContractItemEditViewModel> nonStockItemsWithoutSpecs = new();
     private List<ContractItemEditViewModel> itemsMissingSpecs = new();
+    private List<Class> classes = new();
     private List<Group> groups = new();
     private List<Shape> shapes = new();
     private List<Material> materials = new();
     private List<Coating> coatings = new();
-    private List<Thread> threads = new();
+    private List<ThreadModel> threads = new();
     private List<Spec> specs = new();
     private List<ProductIDEditViewModel> allProductIDs = new();
+    private int? selectedClassId;
     private int? selectedGroupId;
     private int? selectedShapeId;
     private int? selectedMaterialId;
@@ -303,7 +321,14 @@
     {
         get
         {
+            // First filter groups by class if class is selected
+            var filteredGroupIds = selectedClassId.HasValue 
+                ? groups.Where(g => g.ClassId == selectedClassId.Value).Select(g => g.Id).ToList()
+                : groups.Select(g => g.Id).ToList();
+
             return allProductIDs.Where(p =>
+                // If class is selected, only show ProductIDs whose group matches the class
+                (!selectedClassId.HasValue || filteredGroupIds.Contains(p.GroupId)) &&
                 (!selectedGroupId.HasValue || p.GroupId == selectedGroupId.Value) &&
                 (!selectedShapeId.HasValue || p.ShapeId == selectedShapeId.Value) &&
                 (!selectedMaterialId.HasValue || p.MaterialId == selectedMaterialId.Value) &&
@@ -352,11 +377,12 @@
             lengths = (await LengthService.GetAllAsync()).ToList();
 
             // Load specification types for filtering
+            classes = (await _httpClient.GetFromJsonAsync<List<Class>>("api/classes")) ?? new List<Class>();
             groups = (await _httpClient.GetFromJsonAsync<List<Group>>("api/groups")) ?? new List<Group>();
             shapes = (await _httpClient.GetFromJsonAsync<List<Shape>>("api/shapes")) ?? new List<Shape>();
             materials = (await _httpClient.GetFromJsonAsync<List<Material>>("api/materials")) ?? new List<Material>();
             coatings = (await _httpClient.GetFromJsonAsync<List<Coating>>("api/coatings")) ?? new List<Coating>();
-            threads = (await _httpClient.GetFromJsonAsync<List<Thread>>("api/threads")) ?? new List<Thread>();
+            threads = (await _httpClient.GetFromJsonAsync<List<ThreadModel>>("api/threads")) ?? new List<ThreadModel>();
             specs = (await _httpClient.GetFromJsonAsync<List<Spec>>("api/specs")) ?? new List<Spec>();
 
             // Load all ProductIDs for filtering
@@ -529,15 +555,63 @@
         }
     }
 
-    // Autocomplete search functions
+    // Autocomplete search functions - filter dynamically based on current selections
+    private async Task<IEnumerable<int?>> SearchClasses(string value, CancellationToken token)
+    {
+        await Task.CompletedTask;
+        
+        // Get classes that have ProductIDs matching current selections (excluding class itself)
+        var availableClassIds = allProductIDs
+            .Where(p => 
+                (!selectedGroupId.HasValue || p.GroupId == selectedGroupId.Value) &&
+                (!selectedShapeId.HasValue || p.ShapeId == selectedShapeId.Value) &&
+                (!selectedMaterialId.HasValue || p.MaterialId == selectedMaterialId.Value) &&
+                (!selectedCoatingId.HasValue || p.CoatingId == selectedCoatingId.Value) &&
+                (!selectedThreadId.HasValue || p.ThreadId == selectedThreadId.Value) &&
+                (!selectedSpecId.HasValue || p.SpecId == selectedSpecId.Value)
+            )
+            .Select(p => groups.FirstOrDefault(g => g.Id == p.GroupId)?.ClassId)
+            .Where(id => id.HasValue)
+            .Distinct()
+            .ToHashSet();
+        
+        var filteredClasses = classes.Where(c => availableClassIds.Contains(c.Id));
+        
+        if (string.IsNullOrEmpty(value))
+            return filteredClasses.OrderBy(c => c.DisplayName).Select(c => (int?)c.Id);
+        
+        return filteredClasses
+            .Where(c => c.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(c => c.DisplayName)
+            .Select(c => (int?)c.Id);
+    }
+
     private async Task<IEnumerable<int?>> SearchGroups(string value, CancellationToken token)
     {
         await Task.CompletedTask;
         
-        if (string.IsNullOrEmpty(value))
-            return groups.OrderBy(g => g.DisplayName).Select(g => (int?)g.Id);
+        // Get groups that have ProductIDs matching current selections
+        var availableGroupIds = allProductIDs
+            .Where(p => 
+                (!selectedShapeId.HasValue || p.ShapeId == selectedShapeId.Value) &&
+                (!selectedMaterialId.HasValue || p.MaterialId == selectedMaterialId.Value) &&
+                (!selectedCoatingId.HasValue || p.CoatingId == selectedCoatingId.Value) &&
+                (!selectedThreadId.HasValue || p.ThreadId == selectedThreadId.Value) &&
+                (!selectedSpecId.HasValue || p.SpecId == selectedSpecId.Value)
+            )
+            .Select(p => p.GroupId)
+            .Distinct()
+            .ToHashSet();
         
-        return groups
+        var filteredGroups = groups.Where(g => 
+            availableGroupIds.Contains(g.Id) &&
+            (!selectedClassId.HasValue || g.ClassId == selectedClassId.Value)
+        );
+        
+        if (string.IsNullOrEmpty(value))
+            return filteredGroups.OrderBy(g => g.DisplayName).Select(g => (int?)g.Id);
+        
+        return filteredGroups
             .Where(g => g.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
             .OrderBy(g => g.DisplayName)
             .Select(g => (int?)g.Id);
@@ -547,10 +621,31 @@
     {
         await Task.CompletedTask;
         
-        if (string.IsNullOrEmpty(value))
-            return shapes.OrderBy(s => s.DisplayName).Select(s => (int?)s.Id);
+        // Filter groups by class first
+        var validGroupIds = selectedClassId.HasValue 
+            ? groups.Where(g => g.ClassId == selectedClassId.Value).Select(g => g.Id).ToHashSet()
+            : groups.Select(g => g.Id).ToHashSet();
         
-        return shapes
+        // Get shapes that have ProductIDs matching current selections
+        var availableShapeIds = allProductIDs
+            .Where(p => 
+                validGroupIds.Contains(p.GroupId) &&
+                (!selectedGroupId.HasValue || p.GroupId == selectedGroupId.Value) &&
+                (!selectedMaterialId.HasValue || p.MaterialId == selectedMaterialId.Value) &&
+                (!selectedCoatingId.HasValue || p.CoatingId == selectedCoatingId.Value) &&
+                (!selectedThreadId.HasValue || p.ThreadId == selectedThreadId.Value) &&
+                (!selectedSpecId.HasValue || p.SpecId == selectedSpecId.Value)
+            )
+            .Select(p => p.ShapeId)
+            .Distinct()
+            .ToHashSet();
+        
+        var filteredShapes = shapes.Where(s => availableShapeIds.Contains(s.Id));
+        
+        if (string.IsNullOrEmpty(value))
+            return filteredShapes.OrderBy(s => s.DisplayName).Select(s => (int?)s.Id);
+        
+        return filteredShapes
             .Where(s => s.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
             .OrderBy(s => s.DisplayName)
             .Select(s => (int?)s.Id);
@@ -560,10 +655,31 @@
     {
         await Task.CompletedTask;
         
-        if (string.IsNullOrEmpty(value))
-            return materials.OrderBy(m => m.DisplayName).Select(m => (int?)m.Id);
+        // Filter groups by class first
+        var validGroupIds = selectedClassId.HasValue 
+            ? groups.Where(g => g.ClassId == selectedClassId.Value).Select(g => g.Id).ToHashSet()
+            : groups.Select(g => g.Id).ToHashSet();
         
-        return materials
+        // Get materials that have ProductIDs matching current selections
+        var availableMaterialIds = allProductIDs
+            .Where(p => 
+                validGroupIds.Contains(p.GroupId) &&
+                (!selectedGroupId.HasValue || p.GroupId == selectedGroupId.Value) &&
+                (!selectedShapeId.HasValue || p.ShapeId == selectedShapeId.Value) &&
+                (!selectedCoatingId.HasValue || p.CoatingId == selectedCoatingId.Value) &&
+                (!selectedThreadId.HasValue || p.ThreadId == selectedThreadId.Value) &&
+                (!selectedSpecId.HasValue || p.SpecId == selectedSpecId.Value)
+            )
+            .Select(p => p.MaterialId)
+            .Distinct()
+            .ToHashSet();
+        
+        var filteredMaterials = materials.Where(m => availableMaterialIds.Contains(m.Id));
+        
+        if (string.IsNullOrEmpty(value))
+            return filteredMaterials.OrderBy(m => m.DisplayName).Select(m => (int?)m.Id);
+        
+        return filteredMaterials
             .Where(m => m.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
             .OrderBy(m => m.DisplayName)
             .Select(m => (int?)m.Id);
@@ -573,10 +689,31 @@
     {
         await Task.CompletedTask;
         
-        if (string.IsNullOrEmpty(value))
-            return coatings.OrderBy(c => c.DisplayName).Select(c => (int?)c.Id);
+        // Filter groups by class first
+        var validGroupIds = selectedClassId.HasValue 
+            ? groups.Where(g => g.ClassId == selectedClassId.Value).Select(g => g.Id).ToHashSet()
+            : groups.Select(g => g.Id).ToHashSet();
         
-        return coatings
+        // Get coatings that have ProductIDs matching current selections
+        var availableCoatingIds = allProductIDs
+            .Where(p => 
+                validGroupIds.Contains(p.GroupId) &&
+                (!selectedGroupId.HasValue || p.GroupId == selectedGroupId.Value) &&
+                (!selectedShapeId.HasValue || p.ShapeId == selectedShapeId.Value) &&
+                (!selectedMaterialId.HasValue || p.MaterialId == selectedMaterialId.Value) &&
+                (!selectedThreadId.HasValue || p.ThreadId == selectedThreadId.Value) &&
+                (!selectedSpecId.HasValue || p.SpecId == selectedSpecId.Value)
+            )
+            .Select(p => p.CoatingId)
+            .Distinct()
+            .ToHashSet();
+        
+        var filteredCoatings = coatings.Where(c => availableCoatingIds.Contains(c.Id));
+        
+        if (string.IsNullOrEmpty(value))
+            return filteredCoatings.OrderBy(c => c.DisplayName).Select(c => (int?)c.Id);
+        
+        return filteredCoatings
             .Where(c => c.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
             .OrderBy(c => c.DisplayName)
             .Select(c => (int?)c.Id);
@@ -586,10 +723,31 @@
     {
         await Task.CompletedTask;
         
-        if (string.IsNullOrEmpty(value))
-            return threads.OrderBy(t => t.DisplayName).Select(t => (int?)t.Id);
+        // Filter groups by class first
+        var validGroupIds = selectedClassId.HasValue 
+            ? groups.Where(g => g.ClassId == selectedClassId.Value).Select(g => g.Id).ToHashSet()
+            : groups.Select(g => g.Id).ToHashSet();
         
-        return threads
+        // Get threads that have ProductIDs matching current selections
+        var availableThreadIds = allProductIDs
+            .Where(p => 
+                validGroupIds.Contains(p.GroupId) &&
+                (!selectedGroupId.HasValue || p.GroupId == selectedGroupId.Value) &&
+                (!selectedShapeId.HasValue || p.ShapeId == selectedShapeId.Value) &&
+                (!selectedMaterialId.HasValue || p.MaterialId == selectedMaterialId.Value) &&
+                (!selectedCoatingId.HasValue || p.CoatingId == selectedCoatingId.Value) &&
+                (!selectedSpecId.HasValue || p.SpecId == selectedSpecId.Value)
+            )
+            .Select(p => p.ThreadId)
+            .Distinct()
+            .ToHashSet();
+        
+        var filteredThreads = threads.Where(t => availableThreadIds.Contains(t.Id));
+        
+        if (string.IsNullOrEmpty(value))
+            return filteredThreads.OrderBy(t => t.DisplayName).Select(t => (int?)t.Id);
+        
+        return filteredThreads
             .Where(t => t.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
             .OrderBy(t => t.DisplayName)
             .Select(t => (int?)t.Id);
@@ -599,16 +757,43 @@
     {
         await Task.CompletedTask;
         
-        if (string.IsNullOrEmpty(value))
-            return specs.OrderBy(s => s.DisplayName).Select(s => (int?)s.Id);
+        // Filter groups by class first
+        var validGroupIds = selectedClassId.HasValue 
+            ? groups.Where(g => g.ClassId == selectedClassId.Value).Select(g => g.Id).ToHashSet()
+            : groups.Select(g => g.Id).ToHashSet();
         
-        return specs
+        // Get specs that have ProductIDs matching current selections
+        var availableSpecIds = allProductIDs
+            .Where(p => 
+                validGroupIds.Contains(p.GroupId) &&
+                (!selectedGroupId.HasValue || p.GroupId == selectedGroupId.Value) &&
+                (!selectedShapeId.HasValue || p.ShapeId == selectedShapeId.Value) &&
+                (!selectedMaterialId.HasValue || p.MaterialId == selectedMaterialId.Value) &&
+                (!selectedCoatingId.HasValue || p.CoatingId == selectedCoatingId.Value) &&
+                (!selectedThreadId.HasValue || p.ThreadId == selectedThreadId.Value)
+            )
+            .Select(p => p.SpecId)
+            .Distinct()
+            .ToHashSet();
+        
+        var filteredSpecs = specs.Where(s => availableSpecIds.Contains(s.Id));
+        
+        if (string.IsNullOrEmpty(value))
+            return filteredSpecs.OrderBy(s => s.DisplayName).Select(s => (int?)s.Id);
+        
+        return filteredSpecs
             .Where(s => s.DisplayName.Contains(value, StringComparison.OrdinalIgnoreCase))
             .OrderBy(s => s.DisplayName)
             .Select(s => (int?)s.Id);
     }
 
     // Display name functions for autocomplete
+    private string GetClassDisplayName(int? id)
+    {
+        if (!id.HasValue) return string.Empty;
+        return classes.FirstOrDefault(c => c.Id == id.Value)?.DisplayName ?? string.Empty;
+    }
+
     private string GetGroupDisplayName(int? id)
     {
         if (!id.HasValue) return string.Empty;
@@ -643,5 +828,48 @@
     {
         if (!id.HasValue) return string.Empty;
         return specs.FirstOrDefault(s => s.Id == id.Value)?.DisplayName ?? string.Empty;
+    }
+
+    // Handle filter changes to trigger UI refresh
+    private void OnClassChanged(int? value)
+    {
+        selectedClassId = value;
+        StateHasChanged();
+    }
+
+    private void OnGroupChanged(int? value)
+    {
+        selectedGroupId = value;
+        StateHasChanged();
+    }
+
+    private void OnShapeChanged(int? value)
+    {
+        selectedShapeId = value;
+        StateHasChanged();
+    }
+
+    private void OnMaterialChanged(int? value)
+    {
+        selectedMaterialId = value;
+        StateHasChanged();
+    }
+
+    private void OnCoatingChanged(int? value)
+    {
+        selectedCoatingId = value;
+        StateHasChanged();
+    }
+
+    private void OnThreadChanged(int? value)
+    {
+        selectedThreadId = value;
+        StateHasChanged();
+    }
+
+    private void OnSpecChanged(int? value)
+    {
+        selectedSpecId = value;
+        StateHasChanged();
     }
 }
