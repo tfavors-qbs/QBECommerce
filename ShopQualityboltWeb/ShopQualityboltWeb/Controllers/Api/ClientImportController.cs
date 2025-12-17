@@ -331,12 +331,13 @@ namespace ShopQualityboltWeb.Controllers.Api
         {
             if (productIdDto == null) return null;
 
-            // Try to find existing ProductID by LegacyId
+            // Try to find existing ProductID by LegacyName
             var existing = await _context.ProductIDs
-                .FirstOrDefaultAsync(p => p.LegacyId == productIdDto.LegacyId);
+                .FirstOrDefaultAsync(p => p.LegacyName == productIdDto.LegacyName);
 
             if (existing != null)
             {
+                _logger.LogInformation("Found existing ProductID: {LegacyName} with Id: {Id}", existing.LegacyName, existing.Id);
                 return existing;
             }
 
@@ -368,6 +369,8 @@ namespace ShopQualityboltWeb.Controllers.Api
 
             _context.ProductIDs.Add(productId);
             await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("Created new ProductID: {LegacyName} with Id: {Id}", productId.LegacyName, productId.Id);
 
             return productId;
         }
@@ -376,12 +379,13 @@ namespace ShopQualityboltWeb.Controllers.Api
         {
             if (groupDto == null) return null;
 
-            // Try to find existing Group by LegacyId
+            // Try to find existing Group by Name
             var existing = await _context.Groups
-                .FirstOrDefaultAsync(g => g.LegacyId == groupDto.LegacyId);
+                .FirstOrDefaultAsync(g => g.Name == groupDto.Name);
 
             if (existing != null)
             {
+                _logger.LogInformation("Found existing Group: {Name} with Id: {Id}", existing.Name, existing.Id);
                 return existing;
             }
 
@@ -403,6 +407,8 @@ namespace ShopQualityboltWeb.Controllers.Api
 
             _context.Groups.Add(group);
             await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("Created new Group: {Name} with Id: {Id}", group.Name, group.Id);
 
             return group;
         }
@@ -411,12 +417,13 @@ namespace ShopQualityboltWeb.Controllers.Api
         {
             if (classDto == null) return null;
 
-            // Try to find existing Class by LegacyId
+            // Try to find existing Class by Name
             var existing = await _context.Classes
-                .FirstOrDefaultAsync(c => c.LegacyId == classDto.LegacyId);
+                .FirstOrDefaultAsync(c => c.Name == classDto.Name);
 
             if (existing != null)
             {
+                _logger.LogInformation("Found existing Class: {Name} with Id: {Id}", existing.Name, existing.Id);
                 return existing;
             }
 
@@ -430,6 +437,8 @@ namespace ShopQualityboltWeb.Controllers.Api
 
             _context.Classes.Add(classEntity);
             await _context.SaveChangesAsync();
+            
+            _logger.LogInformation("Created new Class: {Name} with Id: {Id}", classEntity.Name, classEntity.Id);
 
             return classEntity;
         }
