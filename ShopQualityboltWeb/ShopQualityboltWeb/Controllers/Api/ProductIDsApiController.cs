@@ -128,7 +128,7 @@ namespace ShopQualityboltWeb.Controllers.Api
                     }
 
                     // Get or Create Class
-                    var classEntity = classes.FirstOrDefault(c => c.Name.Equals(productIDDto.Group.Class.Name, StringComparison.OrdinalIgnoreCase));
+                    var classEntity = classes.FirstOrDefault(c => c.LegacyId.Equals(productIDDto.Group.Class.LegacyId, StringComparison.OrdinalIgnoreCase));
                     if (classEntity == null)
                     {
                         classEntity = new Class
@@ -144,7 +144,7 @@ namespace ShopQualityboltWeb.Controllers.Api
                     }
 
                     // Get or Create Group
-                    var group = groups.FirstOrDefault(g => g.Name.Equals(productIDDto.Group.Name, StringComparison.OrdinalIgnoreCase));
+                    var group = groups.FirstOrDefault(g => g.LegacyId.Equals(productIDDto.Group.LegacyId, StringComparison.OrdinalIgnoreCase));
                     if (group == null)
                     {
                         group = new Group

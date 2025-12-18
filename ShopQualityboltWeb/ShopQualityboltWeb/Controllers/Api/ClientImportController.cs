@@ -381,7 +381,7 @@ namespace ShopQualityboltWeb.Controllers.Api
 
             // Try to find existing Group by Name
             var existing = await _context.Groups
-                .FirstOrDefaultAsync(g => g.Name == groupDto.Name);
+                .FirstOrDefaultAsync(g => g.LegacyId == groupDto.LegacyId);
 
             if (existing != null)
             {
