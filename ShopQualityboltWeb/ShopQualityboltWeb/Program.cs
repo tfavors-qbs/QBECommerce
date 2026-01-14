@@ -276,6 +276,16 @@ builder.Services.AddScoped<IRepository<PunchOutSession>, EFRepository<PunchOutSe
 builder.Services.AddScoped<IModelService<PunchOutSession, PunchOutSession?>, ModelService<PunchOutSession, PunchOutSession?>>();
 builder.Services.AddScoped<IModelMapper<PunchOutSession, PunchOutSession>, GenericMapper<PunchOutSession, PunchOutSession>>();
 
+// QuickOrder services
+builder.Services.AddScoped<IRepository<QuickOrder>, EFRepository<QuickOrder>>();
+builder.Services.AddScoped<IRepository<QuickOrderItem>, EFRepository<QuickOrderItem>>();
+builder.Services.AddScoped<IRepository<QuickOrderTag>, EFRepository<QuickOrderTag>>();
+builder.Services.AddScoped<IModelMapper<QuickOrder, QuickOrderEVM>, QuickOrderMapper>();
+builder.Services.AddScoped<IModelMapper<QuickOrderItem, QuickOrderItemEVM>, QuickOrderItemMapper>();
+builder.Services.AddScoped<IModelService<QuickOrder, QuickOrderEVM>, ModelService<QuickOrder, QuickOrderEVM>>();
+builder.Services.AddScoped<IModelService<QuickOrderItem, QuickOrderItemEVM>, ModelService<QuickOrderItem, QuickOrderItemEVM>>();
+builder.Services.AddScoped<IModelService<QuickOrderTag, QuickOrderTag>, ModelService<QuickOrderTag, QuickOrderTag>>();
+
 // Register Error Log Service
 builder.Services.AddScoped<IErrorLogService, ErrorLogService>();
 
