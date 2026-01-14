@@ -282,6 +282,7 @@ builder.Services.AddScoped<IRepository<QuickOrderItem>, EFRepository<QuickOrderI
 builder.Services.AddScoped<IRepository<QuickOrderTag>, EFRepository<QuickOrderTag>>();
 builder.Services.AddScoped<IModelMapper<QuickOrder, QuickOrderEVM>, QuickOrderMapper>();
 builder.Services.AddScoped<IModelMapper<QuickOrderItem, QuickOrderItemEVM>, QuickOrderItemMapper>();
+builder.Services.AddScoped<IModelMapper<QuickOrderTag, QuickOrderTag>, QuickOrderTagMapper>();
 builder.Services.AddScoped<IModelService<QuickOrder, QuickOrderEVM>, ModelService<QuickOrder, QuickOrderEVM>>();
 builder.Services.AddScoped<IModelService<QuickOrderItem, QuickOrderItemEVM>, ModelService<QuickOrderItem, QuickOrderItemEVM>>();
 builder.Services.AddScoped<IModelService<QuickOrderTag, QuickOrderTag>, ModelService<QuickOrderTag, QuickOrderTag>>();
