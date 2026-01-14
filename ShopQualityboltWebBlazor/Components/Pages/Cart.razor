@@ -78,7 +78,7 @@
                         <MudText>Total Price: @totalPrice.ToString("C")</MudText>
                     </div>
                     <div class="d-flex mt-2">
-                        <MudButton Color="Color.Info" OnClick="SaveAsQuickOrder" Disabled="@(isLoading || IsReadOnly || !ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs?.Any())" Class="mr-2">
+                        <MudButton Color="Color.Info" OnClick="SaveAsQuickOrder" Disabled="@(isLoading || IsReadOnly || !(ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs?.Any() == true))" Class="mr-2">
                             <MudIcon Icon="@Icons.Material.Filled.Bookmark" Size="Size.Small" Class="mr-2" />Save as Quick Order
                         </MudButton>
                         <MudButton Color="Color.Primary" OnClick="PerformCheckout" Disabled="@(isLoading || IsReadOnly)" Class="mr-2">
