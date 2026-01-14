@@ -1,0 +1,336 @@
+@page "/quick-orders"
+@using Microsoft.AspNetCore.Authorization
+@using QBExternalWebLibrary.Models.Catalog
+@using QBExternalWebLibrary.Models.Pages
+@using QBExternalWebLibrary.Services.Http
+@inject QuickOrderApiService QuickOrderApi
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject NavigationManager NavigationManager
+@attribute [Authorize]
+
+<PageTitle>Quick Orders</PageTitle>
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mb-4">
+    <MudIcon Icon="@Icons.Material.Filled.Bookmark" Size="Size.Medium" />
+    <MudText Typo="Typo.h5">Quick Orders</MudText>
+</MudStack>
+
+<MudContainer Style="height: 4px; margin-bottom: 8px;">
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+</MudContainer>
+
+<MudGrid>
+    <MudItem xs="12" md="3">
+        <MudPaper Class="pa-4" Elevation="2">
+            <MudTextField @bind-Value="_searchText"
+                          Label="Search"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          DebounceInterval="300"
+                          Clearable="true" />
+
+            <MudSelect T="string" @bind-Value="_sortBy" Label="Sort By" Class="mt-4">
+                <MudSelectItem Value="@("name")">Name (A-Z)</MudSelectItem>
+                <MudSelectItem Value="@("created")">Date Created</MudSelectItem>
+                <MudSelectItem Value="@("lastused")">Last Used</MudSelectItem>
+                <MudSelectItem Value="@("mostused")">Most Used</MudSelectItem>
+            </MudSelect>
+
+            @if (_allTags.Any())
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Filter by Tag</MudText>
+                <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" @bind-SelectedValues="_selectedTags">
+                    @foreach (var tag in _allTags)
+                    {
+                        <MudChip Value="@tag" Color="Color.Primary" Variant="Variant.Outlined">@tag</MudChip>
+                    }
+                </MudChipSet>
+            }
+
+            <MudButton StartIcon="@Icons.Material.Filled.Add"
+                       Color="Color.Primary"
+                       Variant="Variant.Filled"
+                       FullWidth="true"
+                       Class="mt-4"
+                       OnClick="CreateNewQuickOrder">
+                Create Quick Order
+            </MudButton>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="9">
+        <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-4">
+            <MudTabPanel Text="My Quick Orders" BadgeData="@_filteredMyOrders.Count()" BadgeColor="Color.Primary">
+                @if (!_filteredMyOrders.Any())
+                {
+                    <MudAlert Severity="Severity.Info">No quick orders found. Create one to get started!</MudAlert>
+                }
+                else
+                {
+                    <MudGrid>
+                        @foreach (var order in _filteredMyOrders)
+                        {
+                            <MudItem xs="12" md="6" lg="4">
+                                <MudCard Elevation="2">
+                                    <MudCardHeader>
+                                        <CardHeaderContent>
+                                            <MudStack Row="true" AlignItems="AlignItems.Center">
+                                                <MudText Typo="Typo.h6">@order.Name</MudText>
+                                                @if (order.IsSharedClientWide)
+                                                {
+                                                    <MudTooltip Text="Shared with organization">
+                                                        <MudIcon Icon="@Icons.Material.Filled.People" Size="Size.Small" Color="Color.Info" />
+                                                    </MudTooltip>
+                                                }
+                                            </MudStack>
+                                        </CardHeaderContent>
+                                    </MudCardHeader>
+                                    <MudCardContent>
+                                        @if (order.Tags.Any())
+                                        {
+                                            <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1" Class="mb-2">
+                                                @foreach (var tag in order.Tags)
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Default">@tag</MudChip>
+                                                }
+                                            </MudStack>
+                                        }
+                                        <MudText Typo="Typo.body2">@order.ItemCount items</MudText>
+                                        <MudText Typo="Typo.body2">Total: @order.TotalValue.ToString("C")</MudText>
+                                        @if (order.LastUsedAt.HasValue)
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                Last used: @order.LastUsedAt.Value.ToLocalTime().ToString("MMM d, yyyy")
+                                            </MudText>
+                                        }
+                                    </MudCardContent>
+                                    <MudCardActions>
+                                        <MudButton Size="Size.Small" Color="Color.Primary" OnClick="@(() => EditQuickOrder(order))">Edit</MudButton>
+                                        <MudButton Size="Size.Small" Color="Color.Success" OnClick="@(() => AddAllToCart(order))">Add to Cart</MudButton>
+                                        <MudMenu Icon="@Icons.Material.Filled.MoreVert" Size="Size.Small">
+                                            <MudMenuItem OnClick="@(() => CopyQuickOrder(order))">Copy</MudMenuItem>
+                                            <MudMenuItem OnClick="@(() => DeleteQuickOrder(order))">Delete</MudMenuItem>
+                                        </MudMenu>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+            </MudTabPanel>
+
+            <MudTabPanel Text="Shared With Me" BadgeData="@_filteredSharedOrders.Count()" BadgeColor="Color.Secondary">
+                @if (!_filteredSharedOrders.Any())
+                {
+                    <MudAlert Severity="Severity.Info">No shared quick orders from your organization.</MudAlert>
+                }
+                else
+                {
+                    <MudGrid>
+                        @foreach (var order in _filteredSharedOrders)
+                        {
+                            <MudItem xs="12" md="6" lg="4">
+                                <MudCard Elevation="2">
+                                    <MudCardHeader>
+                                        <CardHeaderContent>
+                                            <MudText Typo="Typo.h6">@order.Name</MudText>
+                                            <MudText Typo="Typo.caption">by @(order.OwnerName ?? order.OwnerEmail)</MudText>
+                                        </CardHeaderContent>
+                                    </MudCardHeader>
+                                    <MudCardContent>
+                                        @if (order.Tags.Any())
+                                        {
+                                            <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1" Class="mb-2">
+                                                @foreach (var tag in order.Tags)
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Default">@tag</MudChip>
+                                                }
+                                            </MudStack>
+                                        }
+                                        <MudText Typo="Typo.body2">@order.ItemCount items</MudText>
+                                        <MudText Typo="Typo.body2">Total: @order.TotalValue.ToString("C")</MudText>
+                                    </MudCardContent>
+                                    <MudCardActions>
+                                        <MudButton Size="Size.Small" Color="Color.Primary" OnClick="@(() => ViewQuickOrder(order))">View</MudButton>
+                                        <MudButton Size="Size.Small" Color="Color.Success" OnClick="@(() => AddAllToCart(order))">Add to Cart</MudButton>
+                                        <MudButton Size="Size.Small" Color="Color.Default" OnClick="@(() => CopyQuickOrder(order))">Copy</MudButton>
+                                    </MudCardActions>
+                                </MudCard>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+            </MudTabPanel>
+        </MudTabs>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool _loading = true;
+    private QuickOrderPageEVM? _pageData;
+    private string _searchText = "";
+    private string _sortBy = "name";
+    private IReadOnlyCollection<string> _selectedTags = new List<string>();
+    private List<string> _allTags = new();
+
+    private IEnumerable<QuickOrderEVM> _filteredMyOrders => FilterAndSort(_pageData?.MyQuickOrders ?? new());
+    private IEnumerable<QuickOrderEVM> _filteredSharedOrders => FilterAndSort(_pageData?.SharedQuickOrders ?? new());
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _pageData = await QuickOrderApi.GetAllAsync();
+        _allTags = _pageData?.AllTags ?? new();
+        _loading = false;
+    }
+
+    private IEnumerable<QuickOrderEVM> FilterAndSort(List<QuickOrderEVM> orders)
+    {
+        var filtered = orders.AsEnumerable();
+
+        // Apply search
+        if (!string.IsNullOrWhiteSpace(_searchText))
+        {
+            var search = _searchText.ToLower();
+            filtered = filtered.Where(o =>
+                o.Name.ToLower().Contains(search) ||
+                o.Tags.Any(t => t.ToLower().Contains(search)));
+        }
+
+        // Apply tag filter
+        if (_selectedTags.Any())
+        {
+            filtered = filtered.Where(o => o.Tags.Any(t => _selectedTags.Contains(t)));
+        }
+
+        // Apply sort
+        filtered = _sortBy switch
+        {
+            "name" => filtered.OrderBy(o => o.Name),
+            "created" => filtered.OrderByDescending(o => o.CreatedAt),
+            "lastused" => filtered.OrderByDescending(o => o.LastUsedAt ?? DateTime.MinValue),
+            "mostused" => filtered.OrderByDescending(o => o.TimesUsed),
+            _ => filtered
+        };
+
+        return filtered;
+    }
+
+    private async Task CreateNewQuickOrder()
+    {
+        var parameters = new DialogParameters
+        {
+            { "QuickOrderId", 0 },
+            { "IsNew", true }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<QuickOrderEditorDialog>("Create Quick Order", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await LoadData();
+            Snackbar.Add("Quick Order created", Severity.Success);
+        }
+    }
+
+    private async Task EditQuickOrder(QuickOrderEVM order)
+    {
+        var parameters = new DialogParameters
+        {
+            { "QuickOrderId", order.Id },
+            { "IsNew", false }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<QuickOrderEditorDialog>("Edit Quick Order", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await LoadData();
+            Snackbar.Add("Quick Order updated", Severity.Success);
+        }
+    }
+
+    private async Task ViewQuickOrder(QuickOrderEVM order)
+    {
+        var parameters = new DialogParameters
+        {
+            { "QuickOrderId", order.Id },
+            { "IsNew", false },
+            { "IsReadOnly", true }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
+        await DialogService.ShowAsync<QuickOrderEditorDialog>("View Quick Order", parameters, options);
+    }
+
+    private async Task AddAllToCart(QuickOrderEVM order)
+    {
+        _loading = true;
+        var result = await QuickOrderApi.AddToCartAsync(order.Id);
+        _loading = false;
+
+        if (result != null)
+        {
+            Snackbar.Add(result.Message, Severity.Success);
+            await LoadData(); // Refresh to update LastUsedAt
+        }
+        else
+        {
+            Snackbar.Add("Failed to add items to cart", Severity.Error);
+        }
+    }
+
+    private async Task CopyQuickOrder(QuickOrderEVM order)
+    {
+        _loading = true;
+        var result = await QuickOrderApi.CopyAsync(order.Id);
+        _loading = false;
+
+        if (result != null)
+        {
+            await LoadData();
+            Snackbar.Add($"Created copy: {result.Name}", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to copy quick order", Severity.Error);
+        }
+    }
+
+    private async Task DeleteQuickOrder(QuickOrderEVM order)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Delete Quick Order",
+            $"Are you sure you want to delete '{order.Name}'?",
+            yesText: "Delete",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            _loading = true;
+            var success = await QuickOrderApi.DeleteAsync(order.Id);
+            _loading = false;
+
+            if (success)
+            {
+                await LoadData();
+                Snackbar.Add("Quick Order deleted", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Failed to delete quick order", Severity.Error);
+            }
+        }
+    }
+}
