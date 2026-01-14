@@ -7,7 +7,8 @@
     <AuthorizeView>
         <Authorized>
             <MudNavLink Href="catalog" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Shop">Catalog</MudNavLink>
-            
+            <MudNavLink Href="quick-orders" Match="NavLinkMatch.Prefix" Icon="@Icons.Material.Filled.Bookmark">Quick Orders</MudNavLink>
+
             @* QBSales section - visible to QBSales and Admin users *@
             <AuthorizeView Roles="QBSales,Admin" Context="salesContext">
                 <Authorized>
