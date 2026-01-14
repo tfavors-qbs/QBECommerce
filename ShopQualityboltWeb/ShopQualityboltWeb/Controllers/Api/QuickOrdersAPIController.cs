@@ -277,4 +277,222 @@ public class QuickOrdersAPIController : ControllerBase
         var updated = _quickOrderService.FindFullyIncluded(q => q.Id == id).First();
         return Ok(MapToEVMWithOwnership(updated, userId));
     }
+
+    [HttpDelete("{id}")]
+    public async Task<ActionResult> DeleteQuickOrder(int id)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var quickOrder = _quickOrderService.GetById(id);
+        if (quickOrder == null) return NotFound("Quick Order not found");
+
+        // Only owner can delete
+        if (quickOrder.OwnerId != userId)
+            return Forbid();
+
+        // Soft delete
+        quickOrder.IsDeleted = true;
+        quickOrder.DeletedAt = DateTime.UtcNow;
+        _quickOrderService.Update(quickOrder);
+
+        _logger.LogInformation("User {UserId} deleted Quick Order {QuickOrderId}", userId, id);
+
+        return NoContent();
+    }
+
+    [HttpPost("{id}/copy")]
+    public async Task<ActionResult<QuickOrderEVM>> CopyQuickOrder(int id)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound("User not found");
+
+        var source = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
+        if (source == null) return NotFound("Quick Order not found");
+
+        // Check access
+        bool isOwner = source.OwnerId == userId;
+        bool isSharedAndSameClient = source.IsSharedClientWide
+            && user.ClientId.HasValue
+            && source.Owner?.ClientId == user.ClientId;
+
+        if (!isOwner && !isSharedAndSameClient)
+            return Forbid();
+
+        // Create copy
+        var copy = new QuickOrder
+        {
+            Name = $"{source.Name} (Copy)",
+            OwnerId = userId,
+            IsSharedClientWide = false, // Copies are private by default
+            CreatedAt = DateTime.UtcNow
+        };
+        _quickOrderService.Create(copy);
+
+        // Copy tags
+        if (source.Tags != null)
+        {
+            foreach (var tag in source.Tags)
+            {
+                _tagService.Create(new QuickOrderTag
+                {
+                    QuickOrderId = copy.Id,
+                    Tag = tag.Tag
+                });
+            }
+        }
+
+        // Copy items
+        if (source.Items != null)
+        {
+            foreach (var item in source.Items)
+            {
+                _quickOrderItemService.Create(new QuickOrderItem
+                {
+                    QuickOrderId = copy.Id,
+                    ContractItemId = item.ContractItemId,
+                    Quantity = item.Quantity
+                });
+            }
+        }
+
+        _logger.LogInformation("User {UserId} copied Quick Order {SourceId} to {CopyId}",
+            userId, id, copy.Id);
+
+        var result = _quickOrderService.FindFullyIncluded(q => q.Id == copy.Id).First();
+        return CreatedAtAction(nameof(GetQuickOrder), new { id = copy.Id },
+            MapToEVMWithOwnership(result, userId));
+    }
+
+    public class AddToCartRequest
+    {
+        public List<int>? SelectedItemIds { get; set; } // null means all items
+    }
+
+    [HttpPost("{id}/add-to-cart")]
+    public async Task<ActionResult<AddToCartResult>> AddToCart(int id, [FromBody] AddToCartRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound("User not found");
+
+        var quickOrder = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
+        if (quickOrder == null) return NotFound("Quick Order not found");
+
+        // Check access
+        bool isOwner = quickOrder.OwnerId == userId;
+        bool isSharedAndSameClient = quickOrder.IsSharedClientWide
+            && user.ClientId.HasValue
+            && quickOrder.Owner?.ClientId == user.ClientId;
+
+        if (!isOwner && !isSharedAndSameClient)
+            return Forbid();
+
+        // Get or create shopping cart
+        var shoppingCartService = HttpContext.RequestServices
+            .GetRequiredService<IModelService<ShoppingCart, ShoppingCartEVM>>();
+        var shoppingCartItemService = HttpContext.RequestServices
+            .GetRequiredService<IModelService<ShoppingCartItem, ShoppingCartItemEVM?>>();
+
+        var cart = shoppingCartService.Find(c => c.ApplicationUserId == userId).FirstOrDefault();
+        if (cart == null)
+        {
+            cart = new ShoppingCart { ApplicationUserId = userId };
+            shoppingCartService.Create(cart);
+        }
+
+        var existingCartItems = shoppingCartItemService
+            .Find(i => i.ShoppingCartId == cart.Id)
+            .ToList();
+
+        // Get valid contract items for user's client
+        var clientContractItems = user.ClientId.HasValue
+            ? _contractItemService.Find(c => c.ClientId == user.ClientId).Select(c => c.Id).ToHashSet()
+            : new HashSet<int>();
+
+        int addedCount = 0;
+        int skippedCount = 0;
+
+        var itemsToAdd = quickOrder.Items ?? new List<QuickOrderItem>();
+        if (request.SelectedItemIds != null)
+        {
+            itemsToAdd = itemsToAdd.Where(i => request.SelectedItemIds.Contains(i.Id)).ToList();
+        }
+
+        foreach (var item in itemsToAdd)
+        {
+            // Skip unavailable items
+            if (!clientContractItems.Contains(item.ContractItemId))
+            {
+                skippedCount++;
+                continue;
+            }
+
+            var existingCartItem = existingCartItems
+                .FirstOrDefault(ci => ci.ContractItemId == item.ContractItemId);
+
+            if (existingCartItem != null)
+            {
+                // Add to existing quantity
+                existingCartItem.Quantity += item.Quantity;
+                shoppingCartItemService.Update(existingCartItem);
+            }
+            else
+            {
+                // Create new cart item
+                shoppingCartItemService.Create(new ShoppingCartItem
+                {
+                    ShoppingCartId = cart.Id,
+                    ContractItemId = item.ContractItemId,
+                    Quantity = item.Quantity
+                });
+            }
+            addedCount++;
+        }
+
+        // Update analytics
+        quickOrder.LastUsedAt = DateTime.UtcNow;
+        quickOrder.TimesUsed++;
+        _quickOrderService.Update(quickOrder);
+
+        _logger.LogInformation("User {UserId} added {Count} items from Quick Order {QuickOrderId} to cart",
+            userId, addedCount, id);
+
+        return Ok(new AddToCartResult
+        {
+            AddedCount = addedCount,
+            SkippedCount = skippedCount,
+            Message = skippedCount > 0
+                ? $"Added {addedCount} items ({skippedCount} unavailable items skipped)"
+                : $"Added {addedCount} items to cart"
+        });
+    }
+
+    public class AddToCartResult
+    {
+        public int AddedCount { get; set; }
+        public int SkippedCount { get; set; }
+        public string Message { get; set; } = string.Empty;
+    }
+
+    [HttpGet("tags")]
+    public async Task<ActionResult<List<string>>> GetTags()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var tags = _tagService
+            .Find(t => t.QuickOrder.OwnerId == userId)
+            .Select(t => t.Tag)
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+
+        return Ok(tags);
+    }
 }
