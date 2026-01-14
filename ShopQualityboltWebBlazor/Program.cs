@@ -109,6 +109,7 @@ builder.Services.AddScoped<ShoppingCartManagementService>(); // Changed from Sin
 builder.Services.AddScoped<PunchOutManagementService>(); // Changed from Singleton
 //builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IAuthenticationApiService, IdentityApiService>();
+builder.Services.AddScoped<QuickOrderApiService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options => {
