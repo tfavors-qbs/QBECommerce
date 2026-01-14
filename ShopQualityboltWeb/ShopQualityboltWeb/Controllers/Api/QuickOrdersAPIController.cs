@@ -155,4 +155,126 @@ public class QuickOrdersAPIController : ControllerBase
         evm.IsOwner = model.OwnerId == currentUserId;
         return evm;
     }
+
+    public class CreateQuickOrderRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public List<string> Tags { get; set; } = new();
+        public bool IsSharedClientWide { get; set; }
+        public List<QuickOrderItemRequest>? Items { get; set; }
+    }
+
+    public class QuickOrderItemRequest
+    {
+        public int ContractItemId { get; set; }
+        public int Quantity { get; set; }
+    }
+
+    public class UpdateQuickOrderRequest
+    {
+        public string Name { get; set; } = string.Empty;
+        public List<string> Tags { get; set; } = new();
+        public bool IsSharedClientWide { get; set; }
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<QuickOrderEVM>> CreateQuickOrder([FromBody] CreateQuickOrderRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound("User not found");
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest("Name is required");
+
+        // Create quick order
+        var quickOrder = new QuickOrder
+        {
+            Name = request.Name.Trim(),
+            OwnerId = userId,
+            IsSharedClientWide = request.IsSharedClientWide,
+            CreatedAt = DateTime.UtcNow
+        };
+        _quickOrderService.Create(quickOrder);
+
+        // Add tags
+        foreach (var tag in request.Tags.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct())
+        {
+            _tagService.Create(new QuickOrderTag
+            {
+                QuickOrderId = quickOrder.Id,
+                Tag = tag.Trim()
+            });
+        }
+
+        // Add items if provided
+        if (request.Items != null)
+        {
+            foreach (var itemReq in request.Items)
+            {
+                // Validate contract item belongs to user's client
+                var contractItem = _contractItemService
+                    .Find(c => c.Id == itemReq.ContractItemId && c.ClientId == user.ClientId)
+                    .FirstOrDefault();
+
+                if (contractItem != null)
+                {
+                    _quickOrderItemService.Create(new QuickOrderItem
+                    {
+                        QuickOrderId = quickOrder.Id,
+                        ContractItemId = itemReq.ContractItemId,
+                        Quantity = itemReq.Quantity
+                    });
+                }
+            }
+        }
+
+        _logger.LogInformation("User {UserId} created Quick Order {QuickOrderId}: {Name}",
+            userId, quickOrder.Id, quickOrder.Name);
+
+        return CreatedAtAction(nameof(GetQuickOrder), new { id = quickOrder.Id },
+            MapToEVMWithOwnership(quickOrder, userId));
+    }
+
+    [HttpPut("{id}")]
+    public async Task<ActionResult<QuickOrderEVM>> UpdateQuickOrder(int id, [FromBody] UpdateQuickOrderRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var quickOrder = _quickOrderService.GetById(id);
+        if (quickOrder == null) return NotFound("Quick Order not found");
+
+        // Only owner can update
+        if (quickOrder.OwnerId != userId)
+            return Forbid();
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+            return BadRequest("Name is required");
+
+        // Update basic properties
+        quickOrder.Name = request.Name.Trim();
+        quickOrder.IsSharedClientWide = request.IsSharedClientWide;
+        _quickOrderService.Update(quickOrder);
+
+        // Update tags: remove old, add new
+        var existingTags = _tagService.Find(t => t.QuickOrderId == id).ToList();
+        _tagService.DeleteRange(existingTags);
+
+        foreach (var tag in request.Tags.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct())
+        {
+            _tagService.Create(new QuickOrderTag
+            {
+                QuickOrderId = id,
+                Tag = tag.Trim()
+            });
+        }
+
+        _logger.LogInformation("User {UserId} updated Quick Order {QuickOrderId}", userId, id);
+
+        var updated = _quickOrderService.FindFullyIncluded(q => q.Id == id).First();
+        return Ok(MapToEVMWithOwnership(updated, userId));
+    }
 }
