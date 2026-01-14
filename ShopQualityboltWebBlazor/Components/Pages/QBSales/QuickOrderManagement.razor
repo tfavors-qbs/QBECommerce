@@ -1,0 +1,281 @@
+@page "/qbsales/quick-order-management"
+@using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Models.Catalog
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Authorization
+@using ShopQualityboltWebBlazor.Components.CustomComponents
+@attribute [Authorize(Roles = "QBSales,Admin")]
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>QBSales - Quick Order Management</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4">
+    <MudText Typo="Typo.h4" Class="mb-4">Quick Order Management</MudText>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+    }
+    else
+    {
+        <MudGrid>
+            <MudItem xs="12" md="4">
+                <MudPaper Class="pa-4" Elevation="2">
+                    <MudText Typo="Typo.h6" Class="mb-4">Select Client</MudText>
+                    <MudAutocomplete T="ClientEditViewModel"
+                                     Label="Client"
+                                     Value="_selectedClient"
+                                     SearchFunc="SearchClients"
+                                     ToStringFunc="@(c => c?.Name ?? "")"
+                                     ResetValueOnEmptyText="true"
+                                     Clearable="true"
+                                     ValueChanged="OnClientSelected" />
+
+                    @if (_selectedClient != null && _users.Any())
+                    {
+                        <MudDivider Class="my-4" />
+                        <MudText Typo="Typo.h6" Class="mb-2">Users</MudText>
+                        <MudList T="UserQuickOrderInfo" Dense="true" @bind-SelectedValue="_selectedUser">
+                            @foreach (var user in _users)
+                            {
+                                <MudListItem Value="user" OnClick="@(() => SelectUser(user))">
+                                    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                        <div>
+                                            <MudText>@user.UserName</MudText>
+                                            <MudText Typo="Typo.caption">@user.UserEmail</MudText>
+                                        </div>
+                                        <MudBadge Content="@user.QuickOrderCount" Color="Color.Primary" Overlap="false" />
+                                    </MudStack>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="8">
+                <MudPaper Class="pa-4" Elevation="2">
+                    @if (_selectedUser == null)
+                    {
+                        <MudAlert Severity="Severity.Info">Select a client and user to manage their quick orders.</MudAlert>
+                    }
+                    else
+                    {
+                        <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+                            <MudText Typo="Typo.h6">Quick Orders for @_selectedUser.UserName</MudText>
+                            <MudStack Row="true" Spacing="2">
+                                <MudSwitch @bind-Value="_showDeleted"
+                                           @bind-Value:after="LoadUserQuickOrders"
+                                           Label="Show Deleted"
+                                           Color="Color.Warning" />
+                                <MudButton StartIcon="@Icons.Material.Filled.Add"
+                                           Color="Color.Success"
+                                           Size="Size.Small"
+                                           OnClick="CreateQuickOrderForUser">
+                                    Create Quick Order
+                                </MudButton>
+                            </MudStack>
+                        </MudStack>
+
+                        @if (!_userQuickOrders.Any())
+                        {
+                            <MudAlert Severity="Severity.Info">No quick orders found for this user.</MudAlert>
+                        }
+                        else
+                        {
+                            <MudTable Items="_userQuickOrders" Dense="true" Hover="true" Striped="true">
+                                <HeaderContent>
+                                    <MudTh>Name</MudTh>
+                                    <MudTh>Tags</MudTh>
+                                    <MudTh>Items</MudTh>
+                                    <MudTh>Shared</MudTh>
+                                    <MudTh>Status</MudTh>
+                                    <MudTh>Actions</MudTh>
+                                </HeaderContent>
+                                <RowTemplate>
+                                    <MudTd>@context.Name</MudTd>
+                                    <MudTd>
+                                        @foreach (var tag in context.Tags.Take(3))
+                                        {
+                                            <MudChip T="string" Size="Size.Small">@tag</MudChip>
+                                        }
+                                    </MudTd>
+                                    <MudTd>@context.ItemCount</MudTd>
+                                    <MudTd>
+                                        @if (context.IsSharedClientWide)
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Filled.Check" Color="Color.Success" />
+                                        }
+                                    </MudTd>
+                                    <MudTd>
+                                        @if (context.IsDeleted)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Error">Deleted</MudChip>
+                                        }
+                                        else
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Success">Active</MudChip>
+                                        }
+                                    </MudTd>
+                                    <MudTd>
+                                        @if (context.IsDeleted)
+                                        {
+                                            <MudButton Size="Size.Small"
+                                                       Color="Color.Warning"
+                                                       OnClick="@(() => RestoreQuickOrder(context))">
+                                                Restore
+                                            </MudButton>
+                                        }
+                                        else
+                                        {
+                                            <MudButton Size="Size.Small"
+                                                       Color="Color.Primary"
+                                                       OnClick="@(() => ViewQuickOrder(context))">
+                                                View
+                                            </MudButton>
+                                        }
+                                    </MudTd>
+                                </RowTemplate>
+                            </MudTable>
+                        }
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private HttpClient _httpClient = null!;
+    private bool _loading = true;
+    private List<ClientEditViewModel> _clients = new();
+    private ClientEditViewModel? _selectedClient;
+    private List<UserQuickOrderInfo> _users = new();
+    private UserQuickOrderInfo? _selectedUser;
+    private List<QuickOrderEVM> _userQuickOrders = new();
+    private bool _showDeleted;
+
+    public class UserQuickOrderInfo
+    {
+        public string UserId { get; set; } = "";
+        public string UserName { get; set; } = "";
+        public string UserEmail { get; set; } = "";
+        public int? ClientId { get; set; }
+        public string? ClientName { get; set; }
+        public int QuickOrderCount { get; set; }
+        public int DeletedQuickOrderCount { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _httpClient = HttpClientFactory.CreateClient("Auth");
+        await LoadClients();
+        _loading = false;
+    }
+
+    private async Task LoadClients()
+    {
+        var response = await _httpClient.GetAsync("api/clients");
+        if (response.IsSuccessStatusCode)
+        {
+            _clients = await response.Content.ReadFromJsonAsync<List<ClientEditViewModel>>() ?? new();
+        }
+    }
+
+    private Task<IEnumerable<ClientEditViewModel>> SearchClients(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult(_clients.AsEnumerable());
+
+        return Task.FromResult(_clients.Where(c =>
+            c.Name.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async Task OnClientSelected(ClientEditViewModel? client)
+    {
+        _selectedClient = client;
+        _selectedUser = null;
+        _userQuickOrders.Clear();
+
+        if (client != null)
+        {
+            _loading = true;
+            var response = await _httpClient.GetAsync($"api/qbsales/quickorders/users/client/{client.Id}");
+            if (response.IsSuccessStatusCode)
+            {
+                _users = await response.Content.ReadFromJsonAsync<List<UserQuickOrderInfo>>() ?? new();
+            }
+            _loading = false;
+        }
+        else
+        {
+            _users.Clear();
+        }
+    }
+
+    private async Task SelectUser(UserQuickOrderInfo user)
+    {
+        _selectedUser = user;
+        await LoadUserQuickOrders();
+    }
+
+    private async Task LoadUserQuickOrders()
+    {
+        if (_selectedUser == null) return;
+
+        _loading = true;
+        var endpoint = _showDeleted
+            ? $"api/qbsales/quickorders/user/{_selectedUser.UserId}/deleted"
+            : $"api/qbsales/quickorders/user/{_selectedUser.UserId}";
+
+        var response = await _httpClient.GetAsync(endpoint);
+        if (response.IsSuccessStatusCode)
+        {
+            _userQuickOrders = await response.Content.ReadFromJsonAsync<List<QuickOrderEVM>>() ?? new();
+        }
+        _loading = false;
+    }
+
+    private async Task CreateQuickOrderForUser()
+    {
+        // Open dialog to create quick order for the selected user
+        Snackbar.Add("Create Quick Order dialog - to be implemented", Severity.Info);
+    }
+
+    private async Task ViewQuickOrder(QuickOrderEVM order)
+    {
+        var parameters = new DialogParameters
+        {
+            { "QuickOrderId", order.Id },
+            { "IsNew", false },
+            { "IsReadOnly", true }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
+        await DialogService.ShowAsync<QuickOrderEditorDialog>("View Quick Order", parameters, options);
+    }
+
+    private async Task RestoreQuickOrder(QuickOrderEVM order)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Restore Quick Order",
+            $"Restore '{order.Name}' for {_selectedUser?.UserName}?",
+            yesText: "Restore",
+            cancelText: "Cancel");
+
+        if (confirmed == true)
+        {
+            var response = await _httpClient.PostAsync($"api/qbsales/quickorders/{order.Id}/restore", null);
+            if (response.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Quick Order restored", Severity.Success);
+                await LoadUserQuickOrders();
+            }
+            else
+            {
+                Snackbar.Add("Failed to restore quick order", Severity.Error);
+            }
+        }
+    }
+}
