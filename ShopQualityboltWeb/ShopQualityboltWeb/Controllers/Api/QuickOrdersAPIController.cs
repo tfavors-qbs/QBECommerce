@@ -495,4 +495,119 @@ public class QuickOrdersAPIController : ControllerBase
 
         return Ok(tags);
     }
+
+    [HttpPost("{id}/items")]
+    public async Task<ActionResult<QuickOrderItemEVM>> AddItem(int id, [FromBody] QuickOrderItemRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user == null) return NotFound("User not found");
+
+        var quickOrder = _quickOrderService.GetById(id);
+        if (quickOrder == null) return NotFound("Quick Order not found");
+
+        if (quickOrder.OwnerId != userId)
+            return Forbid();
+
+        // Validate contract item
+        var contractItem = _contractItemService
+            .Find(c => c.Id == request.ContractItemId && c.ClientId == user.ClientId)
+            .FirstOrDefault();
+
+        if (contractItem == null)
+            return BadRequest("Invalid or unauthorized contract item");
+
+        // Check if item already exists
+        var existingItem = _quickOrderItemService
+            .Find(i => i.QuickOrderId == id && i.ContractItemId == request.ContractItemId)
+            .FirstOrDefault();
+
+        if (existingItem != null)
+        {
+            existingItem.Quantity += request.Quantity;
+            _quickOrderItemService.Update(existingItem);
+            return Ok(new QuickOrderItemEVM
+            {
+                Id = existingItem.Id,
+                QuickOrderId = existingItem.QuickOrderId,
+                ContractItemId = existingItem.ContractItemId,
+                ContractItem = _contractItemMapper.MapToEdit(contractItem),
+                Quantity = existingItem.Quantity,
+                IsAvailable = true
+            });
+        }
+
+        var item = new QuickOrderItem
+        {
+            QuickOrderId = id,
+            ContractItemId = request.ContractItemId,
+            Quantity = request.Quantity
+        };
+        _quickOrderItemService.Create(item);
+
+        return CreatedAtAction(nameof(GetQuickOrder), new { id }, new QuickOrderItemEVM
+        {
+            Id = item.Id,
+            QuickOrderId = item.QuickOrderId,
+            ContractItemId = item.ContractItemId,
+            ContractItem = _contractItemMapper.MapToEdit(contractItem),
+            Quantity = item.Quantity,
+            IsAvailable = true
+        });
+    }
+
+    [HttpPut("{id}/items/{itemId}")]
+    public async Task<ActionResult<QuickOrderItemEVM>> UpdateItem(int id, int itemId, [FromBody] QuickOrderItemRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var quickOrder = _quickOrderService.GetById(id);
+        if (quickOrder == null) return NotFound("Quick Order not found");
+
+        if (quickOrder.OwnerId != userId)
+            return Forbid();
+
+        var item = _quickOrderItemService.GetById(itemId);
+        if (item == null || item.QuickOrderId != id)
+            return NotFound("Item not found");
+
+        item.Quantity = request.Quantity;
+        _quickOrderItemService.Update(item);
+
+        var contractItem = _contractItemService.GetById(item.ContractItemId);
+
+        return Ok(new QuickOrderItemEVM
+        {
+            Id = item.Id,
+            QuickOrderId = item.QuickOrderId,
+            ContractItemId = item.ContractItemId,
+            ContractItem = contractItem != null ? _contractItemMapper.MapToEdit(contractItem) : null,
+            Quantity = item.Quantity,
+            IsAvailable = contractItem != null
+        });
+    }
+
+    [HttpDelete("{id}/items/{itemId}")]
+    public async Task<ActionResult> RemoveItem(int id, int itemId)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (userId == null) return Unauthorized();
+
+        var quickOrder = _quickOrderService.GetById(id);
+        if (quickOrder == null) return NotFound("Quick Order not found");
+
+        if (quickOrder.OwnerId != userId)
+            return Forbid();
+
+        var item = _quickOrderItemService.GetById(itemId);
+        if (item == null || item.QuickOrderId != id)
+            return NotFound("Item not found");
+
+        _quickOrderItemService.Delete(item);
+
+        return NoContent();
+    }
 }
