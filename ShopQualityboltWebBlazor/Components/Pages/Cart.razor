@@ -19,6 +19,8 @@
 @inject ShoppingCartItemApiService shoppingCartItemApiService;
 @inject HttpClient httpClient;
 @inject IJSRuntime JSRuntime
+@inject QuickOrderApiService QuickOrderApi
+@inject ISnackbar Snackbar
 @implements IDisposable
 
 <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
@@ -76,6 +78,9 @@
                         <MudText>Total Price: @totalPrice.ToString("C")</MudText>
                     </div>
                     <div class="d-flex mt-2">
+                        <MudButton Color="Color.Info" OnClick="SaveAsQuickOrder" Disabled="@(isLoading || IsReadOnly || !ShoppingCartManagementService.UsersShoppingCartEVM.ShoppingCartItemEVMs?.Any())" Class="mr-2">
+                            <MudIcon Icon="@Icons.Material.Filled.Bookmark" Size="Size.Small" Class="mr-2" />Save as Quick Order
+                        </MudButton>
                         <MudButton Color="Color.Primary" OnClick="PerformCheckout" Disabled="@(isLoading || IsReadOnly)" Class="mr-2">
                             <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Size="Size.Small" Class="mr-2" />Check Out
                         </MudButton>
@@ -180,6 +185,35 @@
             isLoading = true;
             await ShoppingCartManagementService.ClearItemsAsync();
             isLoading = false;
+        }
+    }
+
+    private async Task SaveAsQuickOrder()
+    {
+        var items = ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Values
+            .Select(i => new QuickOrderItemRequest
+            {
+                ContractItemId = i.ContractItemId,
+                Quantity = i.Quantity
+            })
+            .ToList() ?? new();
+
+        if (!items.Any())
+        {
+            return;
+        }
+
+        var parameters = new DialogParameters
+        {
+            { "Items", items }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dialog = await DialogService.ShowAsync<SaveAsQuickOrderDialog>("Save as Quick Order", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled && result.Data is QuickOrderEVM quickOrder)
+        {
+            Snackbar.Add($"Quick Order '{quickOrder.Name}' saved", Severity.Success);
         }
     }
 
