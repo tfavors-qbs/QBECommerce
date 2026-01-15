@@ -1,0 +1,210 @@
+@using QBExternalWebLibrary.Models.Catalog
+@using QBExternalWebLibrary.Services.Http
+@using ShopQualityboltWebBlazor.Services
+@inject PastOrderApiService PastOrderApi
+@inject QuickOrderApiService QuickOrderApi
+@inject ShoppingCartManagementService ShoppingCartManagementService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else if (_order == null)
+        {
+            <MudAlert Severity="Severity.Error">Failed to load order details.</MudAlert>
+        }
+        else
+        {
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.h6">@(_order.Order.PONumber ?? "No PO Number")</MudText>
+                    <MudText Typo="Typo.body2">Order Date: @_order.Order.OrderedAt.ToLocalTime().ToString("MMMM d, yyyy h:mm tt")</MudText>
+                    <MudText Typo="Typo.body2">Placed by: @(_order.Order.UserName ?? _order.Order.UserEmail)</MudText>
+                    <MudText Typo="Typo.body1" Class="mt-2"><strong>Total: @_order.Order.TotalAmount.ToString("C")</strong></MudText>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudText Typo="Typo.subtitle2">Tags</MudText>
+                    <MudTextField @bind-Value="_tagInput"
+                                  Placeholder="Add tag and press Enter"
+                                  Variant="Variant.Outlined"
+                                  OnKeyDown="@OnTagKeyDown"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.Add"
+                                  Class="mb-2" />
+                    <MudChipSet T="string">
+                        @foreach (var tag in _tags)
+                        {
+                            <MudChip T="string" Color="Color.Primary" OnClose="@(() => RemoveTag(tag))">@tag</MudChip>
+                        }
+                    </MudChipSet>
+                    @if (_tagsModified)
+                    {
+                        <MudButton Size="Size.Small" Color="Color.Primary" OnClick="SaveTags" Class="mt-2">Save Tags</MudButton>
+                    }
+                </MudItem>
+            </MudGrid>
+
+            <MudDivider Class="my-4" />
+
+            <MudText Typo="Typo.h6" Class="mb-2">Items</MudText>
+            <MudTable Items="_order.Items" Dense="true" Hover="true" Striped="true">
+                <HeaderContent>
+                    <MudTh>Product</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh>Qty</MudTh>
+                    <MudTh>Unit Price</MudTh>
+                    <MudTh>Line Total</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="item">
+                    <MudTd>
+                        @if (!item.IsAvailable)
+                        {
+                            <MudText Color="Color.Error">@item.ProductName (Unavailable)</MudText>
+                        }
+                        else
+                        {
+                            @item.ProductName
+                        }
+                    </MudTd>
+                    <MudTd>@item.Description</MudTd>
+                    <MudTd>@item.Quantity</MudTd>
+                    <MudTd>@item.UnitPrice.ToString("C")</MudTd>
+                    <MudTd>@item.LineTotal.ToString("C")</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Close</MudButton>
+        <MudButton Color="Color.Info" OnClick="ConvertToQuickOrder" Disabled="@(_loading || _order == null)">
+            <MudIcon Icon="@Icons.Material.Filled.Bookmark" Class="mr-1" /> Convert to Quick Order
+        </MudButton>
+        <MudButton Color="Color.Success" OnClick="Reorder" Disabled="@(_loading || _order == null)">
+            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Class="mr-1" /> Reorder
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int OrderId { get; set; }
+
+    private bool _loading = true;
+    private PastOrderDetailEVM? _order;
+    private string _tagInput = "";
+    private List<string> _tags = new();
+    private List<string> _originalTags = new();
+    private bool _tagsModified => !_tags.SequenceEqual(_originalTags);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrder();
+    }
+
+    private async Task LoadOrder()
+    {
+        _loading = true;
+        _order = await PastOrderApi.GetByIdAsync(OrderId);
+        if (_order != null)
+        {
+            _tags = _order.Order.Tags.ToList();
+            _originalTags = _order.Order.Tags.ToList();
+        }
+        _loading = false;
+    }
+
+    private void OnTagKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_tagInput))
+        {
+            var tag = _tagInput.Trim();
+            if (!_tags.Contains(tag))
+            {
+                _tags.Add(tag);
+            }
+            _tagInput = "";
+        }
+    }
+
+    private void RemoveTag(string tag)
+    {
+        _tags.Remove(tag);
+    }
+
+    private async Task SaveTags()
+    {
+        var success = await PastOrderApi.UpdateTagsAsync(OrderId, _tags);
+        if (success)
+        {
+            _originalTags = _tags.ToList();
+            Snackbar.Add("Tags updated", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update tags", Severity.Error);
+        }
+    }
+
+    private async Task Reorder()
+    {
+        if (_order == null) return;
+
+        var availableItems = _order.Items.Where(i => i.IsAvailable).ToList();
+        var unavailableItems = _order.Items.Where(i => !i.IsAvailable).ToList();
+
+        // Proceed directly with reorder - items are added to cart
+        var result = await PastOrderApi.ReorderAsync(OrderId);
+        if (result != null)
+        {
+            await ShoppingCartManagementService.RefreshUserShoppingCart();
+            Snackbar.Add(result.Message, Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to reorder", Severity.Error);
+        }
+    }
+
+    private async Task ConvertToQuickOrder()
+    {
+        if (_order == null) return;
+
+        var availableItems = _order.Items.Where(i => i.IsAvailable).ToList();
+        if (!availableItems.Any())
+        {
+            Snackbar.Add("No available items to convert", Severity.Warning);
+            return;
+        }
+
+        // Create quick order with available items
+        var request = new CreateQuickOrderRequest
+        {
+            Name = $"From Order {_order.Order.PONumber ?? _order.Order.OrderedAt.ToString("MMM d, yyyy")}",
+            Tags = _tags,
+            IsSharedClientWide = false,
+            Items = availableItems.Select(i => new QuickOrderItemRequest
+            {
+                ContractItemId = i.ContractItemId,
+                Quantity = i.Quantity
+            }).ToList()
+        };
+
+        var quickOrder = await QuickOrderApi.CreateAsync(request);
+        if (quickOrder != null)
+        {
+            Snackbar.Add($"Quick Order '{quickOrder.Name}' created", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to create Quick Order", Severity.Error);
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
