@@ -20,6 +20,7 @@
 @inject HttpClient httpClient;
 @inject IJSRuntime JSRuntime
 @inject QuickOrderApiService QuickOrderApi
+@inject PastOrderApiService PastOrderApi
 @inject ISnackbar Snackbar
 @implements IDisposable
 
@@ -71,6 +72,32 @@
             </MudTable>
 
             <MudGrid Class="mt-4">
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_poNumber"
+                                  Label="PO Number"
+                                  Placeholder="Enter PO Number (optional)"
+                                  Variant="Variant.Outlined"
+                                  Disabled="@(isLoading || IsReadOnly)" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_tagInput"
+                                  Label="Tags"
+                                  Placeholder="Enter tag and press Enter"
+                                  Variant="Variant.Outlined"
+                                  Disabled="@(isLoading || IsReadOnly)"
+                                  OnKeyDown="@OnTagKeyDown"
+                                  Adornment="Adornment.End"
+                                  AdornmentIcon="@Icons.Material.Filled.Add" />
+                    @if (_tags.Any())
+                    {
+                        <MudChipSet T="string" Class="mt-2">
+                            @foreach (var tag in _tags)
+                            {
+                                <MudChip T="string" Color="Color.Primary" OnClose="@(() => RemoveTag(tag))">@tag</MudChip>
+                            }
+                        </MudChipSet>
+                    }
+                </MudItem>
                 <MudItem xs="12" Class="d-flex flex-column" Style="align-items: flex-end;">
                     <div class="d-flex">
                         <MudText Class="mr-4">Total Items: @totalItems</MudText>
@@ -120,6 +147,9 @@
     public bool IsReadOnly{ get; set; }
 
     private bool isLoading;
+    private string _poNumber = "";
+    private string _tagInput = "";
+    private List<string> _tags = new();
     private int totalQuantity => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Sum(item => item.Value.Quantity) ?? 0;
     private int totalItems => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Count() ?? 0;
     private decimal totalPrice => ShoppingCartManagementService.UsersShoppingCartEVM?.ShoppingCartItemEVMs?.Sum(item => item.Value.Quantity * item.Value.ContractItemEditViewModel.Price) ?? 0m;
@@ -333,6 +363,38 @@
             }
             debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] All items validated successfully");
 
+            // Step 5.5: Create Past Order record
+            debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Creating Past Order record...");
+            try
+            {
+                var pastOrderRequest = new CreatePastOrderRequest
+                {
+                    PONumber = string.IsNullOrWhiteSpace(_poNumber) ? null : _poNumber.Trim(),
+                    Tags = _tags,
+                    TotalAmount = totalPrice,
+                    Items = usersCartItems.Select(item => new CreatePastOrderItemRequest
+                    {
+                        ContractItemId = item.ContractItemId,
+                        Quantity = item.Quantity,
+                        UnitPrice = item.ContractItem.Price
+                    }).ToList()
+                };
+
+                var pastOrderResult = await PastOrderApi.CreateAsync(pastOrderRequest);
+                if (pastOrderResult != null)
+                {
+                    debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Past Order created with ID: {pastOrderResult.Id}");
+                }
+                else
+                {
+                    debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Warning: Failed to create Past Order (non-blocking)");
+                }
+            }
+            catch (Exception pastOrderEx)
+            {
+                debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Warning: Past Order creation failed: {pastOrderEx.Message} (non-blocking)");
+            }
+
             // Step 6: Generate cXML order message (BEFORE clearing cart)
             debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Generating cXML order message...");
             string orderMessage = ShoppingCart.GeneratePunchOutOrderMessage(usersCartItems, session);
@@ -357,6 +419,10 @@
             {
                 await ShoppingCartManagementService.ClearItemsAsync();
                 debugInfo.Add($"[{DateTime.Now:HH:mm:ss.fff}] Cart cleared successfully");
+
+                // Clear PO and tags
+                _poNumber = "";
+                _tags.Clear();
             }
             catch (Exception clearEx)
             {
@@ -364,7 +430,7 @@
                 // Continue with checkout even if cart clearing fails
                 // The error is captured in debugInfo and will be logged if needed
             }
-            
+
             // Note: Debug console logging removed - errors are logged to database for admin review
 
             // Step 8: POST to Ariba (optional validation step)
@@ -536,10 +602,28 @@
         };
 
         await ShowDebugError(
-            "Test Error - Cart Operation", 
+            "Test Error - Cart Operation",
             "This is a test error generated by the admin to verify the error logging system is working correctly.",
             debugInfo,
             "Test response content: This would normally contain the server response."
         );
+    }
+
+    private void OnTagKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_tagInput))
+        {
+            var tag = _tagInput.Trim();
+            if (!_tags.Contains(tag))
+            {
+                _tags.Add(tag);
+            }
+            _tagInput = "";
+        }
+    }
+
+    private void RemoveTag(string tag)
+    {
+        _tags.Remove(tag);
     }
 }}
