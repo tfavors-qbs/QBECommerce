@@ -2,15 +2,14 @@
 @using QBExternalWebLibrary.Models.Catalog
 @using QBExternalWebLibrary.Models.Products
 @using QBExternalWebLibrary.Services.Http
-@inject IApiService<ContractItem, ContractItemEditViewModel> ContractItemApi
+@inject QBSalesQuickOrderApiService QBSalesApi
 @inject IApiService<Diameter, Diameter> DiameterApi
 @inject IApiService<Length, Length> LengthApi
-@inject QuickOrderApiService QuickOrderApi
 @inject ISnackbar Snackbar
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">Add Items to @QuickOrderName</MudText>
+        <MudText Typo="Typo.h6">Create Quick Order</MudText>
     </TitleContent>
     <DialogContent>
         @if (_loading)
@@ -21,9 +20,90 @@
         else
         {
             <MudGrid>
+                @* Quick Order Details Header *@
+                <MudItem xs="12">
+                    <MudPaper Class="pa-4" Elevation="1">
+                        <MudStack Spacing="2">
+                            <MudAlert Severity="Severity.Info" Dense="true">
+                                Creating Quick Order for: <strong>@UserName</strong> (@UserEmail)
+                            </MudAlert>
+                            <MudGrid>
+                                <MudItem xs="12" md="6">
+                                    <MudTextField @bind-Value="_name"
+                                                  Label="Quick Order Name"
+                                                  Required="true"
+                                                  Variant="Variant.Outlined" />
+                                </MudItem>
+                                <MudItem xs="12" md="6">
+                                    <MudSwitch @bind-Value="_isShared"
+                                               Label="Share with organization"
+                                               Color="Color.Primary" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudAutocomplete T="string"
+                                                     Label="Tags"
+                                                     @bind-Value="_currentTag"
+                                                     SearchFunc="SearchTags"
+                                                     CoerceText="false"
+                                                     CoerceValue="false"
+                                                     Adornment="Adornment.End"
+                                                     AdornmentIcon="@Icons.Material.Filled.Add"
+                                                     OnAdornmentClick="AddTag" />
+                                    <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="1" Class="mt-2">
+                                        @foreach (var tag in _tags)
+                                        {
+                                            <MudChip T="string" Color="Color.Primary"
+                                                     OnClose="@(() => RemoveTag(tag))"
+                                                     CloseIcon="@Icons.Material.Filled.Close">
+                                                @tag
+                                            </MudChip>
+                                        }
+                                    </MudStack>
+                                </MudItem>
+                            </MudGrid>
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+
+                @* Pending Items Section *@
+                @if (_pendingItems.Any())
+                {
+                    <MudItem xs="12">
+                        <MudPaper Class="pa-3" Elevation="1">
+                            <MudStack Spacing="2">
+                                <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                    <MudText Typo="Typo.subtitle1"><strong>Items to Add (@_pendingItems.Count)</strong></MudText>
+                                    <MudButton Size="Size.Small" Color="Color.Error" OnClick="ClearAllPendingItems">
+                                        Clear All
+                                    </MudButton>
+                                </MudStack>
+                                <MudTable Items="_pendingItems" Dense="true" Hover="true" FixedHeader="true" Height="150px">
+                                    <HeaderContent>
+                                        <MudTh>Stock Number</MudTh>
+                                        <MudTh>Description</MudTh>
+                                        <MudTh>Qty</MudTh>
+                                        <MudTh Style="width: 50px;"></MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate>
+                                        <MudTd>@context.CustomerStkNo</MudTd>
+                                        <MudTd>@context.Description</MudTd>
+                                        <MudTd>@context.Quantity</MudTd>
+                                        <MudTd>
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                           Size="Size.Small"
+                                                           Color="Color.Error"
+                                                           OnClick="@(() => RemovePendingItem(context))" />
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            </MudStack>
+                        </MudPaper>
+                    </MudItem>
+                }
+
                 @* Filters Sidebar *@
                 <MudItem xs="12" md="3">
-                    <MudPaper Class="pa-3" Elevation="1" Style="max-height: 60vh; overflow-y: auto;">
+                    <MudPaper Class="pa-3" Elevation="1" Style="max-height: 50vh; overflow-y: auto;">
                         <MudStack Spacing="2">
                             <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                                 <MudText Typo="Typo.subtitle1"><strong>Filters</strong></MudText>
@@ -234,16 +314,12 @@
                 <MudItem xs="12" md="9">
                     <MudText Typo="Typo.body2" Class="mb-2">
                         Showing @_filteredItems.Count of @_allItems.Count items
-                        @if (_addedCount > 0)
-                        {
-                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Class="ml-2">@_addedCount added</MudChip>
-                        }
                     </MudText>
                     <MudTable Items="_filteredItems"
                               Dense="true"
                               Hover="true"
                               FixedHeader="true"
-                              Height="50vh"
+                              Height="40vh"
                               RowsPerPage="25">
                         <HeaderContent>
                             <MudTh>Stock Number</MudTh>
@@ -267,8 +343,7 @@
                                 <MudIconButton Icon="@Icons.Material.Filled.Add"
                                                Color="Color.Primary"
                                                Size="Size.Small"
-                                               OnClick="@(() => AddItem(context))"
-                                               Disabled="@_addingItem" />
+                                               OnClick="@(() => AddToPending(context))" />
                             </MudTd>
                         </RowTemplate>
                         <PagerContent>
@@ -280,7 +355,17 @@
         }
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="Close">Done</MudButton>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary"
+                   Variant="Variant.Filled"
+                   OnClick="Create"
+                   Disabled="@(string.IsNullOrWhiteSpace(_name) || _saving)">
+            @if (_saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Create Quick Order
+        </MudButton>
     </DialogActions>
 </MudDialog>
 
@@ -289,15 +374,31 @@
     MudDialogInstance MudDialog { get; set; }
 
     [Parameter]
-    public int QuickOrderId { get; set; }
+    public string UserId { get; set; } = string.Empty;
 
     [Parameter]
-    public string QuickOrderName { get; set; } = "";
+    public string UserName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string UserEmail { get; set; } = string.Empty;
+
+    [Parameter]
+    public int ClientId { get; set; }
 
     private bool _loading = true;
-    private bool _addingItem;
-    private int _addedCount;
+    private bool _saving;
 
+    // Quick Order fields
+    private string _name = "";
+    private bool _isShared;
+    private List<string> _tags = new();
+    private string _currentTag = "";
+    private List<string> _availableTags = new() { "Favorites", "Monthly Order", "Restocking", "Emergency" };
+
+    // Pending items (to be added when Create is clicked)
+    private List<PendingItem> _pendingItems = new();
+
+    // Catalog items
     private List<ContractItemEditViewModel> _allItems = new();
     private List<ContractItemEditViewModel> _filteredItems = new();
     private Dictionary<int, int> _quantities = new();
@@ -332,7 +433,7 @@
     {
         _loading = true;
 
-        var items = await ContractItemApi.GetAllAsync();
+        var items = await QBSalesApi.GetContractItemsByClientAsync(ClientId);
         if (items != null)
         {
             _allItems = items.ToList();
@@ -514,29 +615,112 @@
         Filter();
     }
 
-    private async Task AddItem(ContractItemEditViewModel item)
+    private Task<IEnumerable<string>> SearchTags(string value, CancellationToken token)
     {
-        _addingItem = true;
+        if (string.IsNullOrEmpty(value))
+            return Task.FromResult(_availableTags.Except(_tags));
+
+        return Task.FromResult(_availableTags
+            .Where(t => t.Contains(value, StringComparison.OrdinalIgnoreCase))
+            .Except(_tags));
+    }
+
+    private void AddTag()
+    {
+        if (!string.IsNullOrWhiteSpace(_currentTag) && !_tags.Contains(_currentTag))
+        {
+            _tags.Add(_currentTag.Trim());
+            if (!_availableTags.Contains(_currentTag))
+                _availableTags.Add(_currentTag.Trim());
+        }
+        _currentTag = "";
+    }
+
+    private void RemoveTag(string tag)
+    {
+        _tags.Remove(tag);
+    }
+
+    private void AddToPending(ContractItemEditViewModel item)
+    {
         var quantity = _quantities.GetValueOrDefault(item.Id, 1);
 
-        var result = await QuickOrderApi.AddItemAsync(QuickOrderId, item.Id, quantity);
-
-        if (result != null)
+        // Check if item already in pending list
+        var existing = _pendingItems.FirstOrDefault(p => p.ContractItemId == item.Id);
+        if (existing != null)
         {
-            _addedCount++;
-            Snackbar.Add($"Added {item.CustomerStkNo} (qty: {quantity})", Severity.Success);
-            _quantities[item.Id] = 1; // Reset quantity after adding
+            existing.Quantity += quantity;
+            Snackbar.Add($"Updated {item.CustomerStkNo} quantity to {existing.Quantity}", Severity.Info);
         }
         else
         {
-            Snackbar.Add($"Failed to add {item.CustomerStkNo}", Severity.Error);
+            _pendingItems.Add(new PendingItem
+            {
+                ContractItemId = item.Id,
+                CustomerStkNo = item.CustomerStkNo ?? "",
+                Description = item.Description ?? "",
+                Quantity = quantity
+            });
+            Snackbar.Add($"Added {item.CustomerStkNo} (qty: {quantity})", Severity.Success);
         }
 
-        _addingItem = false;
+        _quantities[item.Id] = 1; // Reset quantity
     }
 
-    private void Close()
+    private void RemovePendingItem(PendingItem item)
     {
-        MudDialog.Close(DialogResult.Ok(_addedCount > 0));
+        _pendingItems.Remove(item);
+    }
+
+    private void ClearAllPendingItems()
+    {
+        _pendingItems.Clear();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Create()
+    {
+        if (string.IsNullOrWhiteSpace(_name))
+        {
+            Snackbar.Add("Name is required", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+
+        var request = new CreateQuickOrderForUserRequest
+        {
+            Name = _name.Trim(),
+            Tags = _tags,
+            IsSharedClientWide = _isShared,
+            Items = _pendingItems.Select(p => new QuickOrderItemRequest
+            {
+                ContractItemId = p.ContractItemId,
+                Quantity = p.Quantity
+            }).ToList()
+        };
+
+        var result = await QBSalesApi.CreateQuickOrderForUserAsync(UserId, request);
+
+        if (result != null)
+        {
+            Snackbar.Add($"Created Quick Order '{_name}' with {_pendingItems.Count} items", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(result));
+        }
+        else
+        {
+            Snackbar.Add("Failed to create Quick Order", Severity.Error);
+        }
+
+        _saving = false;
+    }
+
+    private class PendingItem
+    {
+        public int ContractItemId { get; set; }
+        public string CustomerStkNo { get; set; } = "";
+        public string Description { get; set; } = "";
+        public int Quantity { get; set; }
     }
 }

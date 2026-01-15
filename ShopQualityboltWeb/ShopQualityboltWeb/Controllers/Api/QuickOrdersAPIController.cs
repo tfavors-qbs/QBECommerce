@@ -55,9 +55,12 @@ public class QuickOrdersAPIController : ControllerBase
 
         var pageEVM = new QuickOrderPageEVM();
 
-        // Get user's own quick orders (not deleted)
+        // Get user's own quick orders for their current client (not deleted)
+        // Users only see quick orders that belong to their current client
         var myOrders = _quickOrderService
-            .FindFullyIncluded(q => q.OwnerId == userId && !q.IsDeleted)
+            .FindFullyIncluded(q => q.OwnerId == userId
+                && !q.IsDeleted
+                && q.ClientId == user.ClientId)
             .ToList();
         pageEVM.MyQuickOrders = myOrders.Select(q => MapToEVMWithOwnership(q, userId)).ToList();
 
@@ -68,7 +71,7 @@ public class QuickOrdersAPIController : ControllerBase
                 .FindFullyIncluded(q => q.IsSharedClientWide
                     && !q.IsDeleted
                     && q.OwnerId != userId
-                    && q.Owner.ClientId == user.ClientId)
+                    && q.ClientId == user.ClientId)
                 .ToList();
             pageEVM.SharedQuickOrders = sharedOrders.Select(q => MapToEVMWithOwnership(q, userId)).ToList();
         }
@@ -97,13 +100,12 @@ public class QuickOrdersAPIController : ControllerBase
         var quickOrder = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
         if (quickOrder == null) return NotFound("Quick Order not found");
 
-        // Check access: must be owner OR shared + same client
+        // Check access: must be same client AND (owner OR shared)
+        bool sameClient = user.ClientId.HasValue && quickOrder.ClientId == user.ClientId;
         bool isOwner = quickOrder.OwnerId == userId;
-        bool isSharedAndSameClient = quickOrder.IsSharedClientWide
-            && user.ClientId.HasValue
-            && quickOrder.Owner?.ClientId == user.ClientId;
+        bool isSharedAndSameClient = quickOrder.IsSharedClientWide && sameClient;
 
-        if (!isOwner && !isSharedAndSameClient)
+        if (!sameClient || (!isOwner && !isSharedAndSameClient))
             return Forbid();
 
         // Don't show deleted unless owner
@@ -189,11 +191,12 @@ public class QuickOrdersAPIController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Name))
             return BadRequest("Name is required");
 
-        // Create quick order
+        // Create quick order - ClientId is set from user's current client
         var quickOrder = new QuickOrder
         {
             Name = request.Name.Trim(),
             OwnerId = userId,
+            ClientId = user.ClientId,
             IsSharedClientWide = request.IsSharedClientWide,
             CreatedAt = DateTime.UtcNow
         };
@@ -313,20 +316,20 @@ public class QuickOrdersAPIController : ControllerBase
         var source = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
         if (source == null) return NotFound("Quick Order not found");
 
-        // Check access
+        // Check access: must be same client AND (owner OR shared)
+        bool sameClient = user.ClientId.HasValue && source.ClientId == user.ClientId;
         bool isOwner = source.OwnerId == userId;
-        bool isSharedAndSameClient = source.IsSharedClientWide
-            && user.ClientId.HasValue
-            && source.Owner?.ClientId == user.ClientId;
+        bool isSharedAndSameClient = source.IsSharedClientWide && sameClient;
 
-        if (!isOwner && !isSharedAndSameClient)
+        if (!sameClient || (!isOwner && !isSharedAndSameClient))
             return Forbid();
 
-        // Create copy
+        // Create copy - belongs to user's current client
         var copy = new QuickOrder
         {
             Name = $"{source.Name} (Copy)",
             OwnerId = userId,
+            ClientId = user.ClientId,
             IsSharedClientWide = false, // Copies are private by default
             CreatedAt = DateTime.UtcNow
         };
@@ -384,13 +387,12 @@ public class QuickOrdersAPIController : ControllerBase
         var quickOrder = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
         if (quickOrder == null) return NotFound("Quick Order not found");
 
-        // Check access
+        // Check access: must be same client AND (owner OR shared)
+        bool sameClient = user.ClientId.HasValue && quickOrder.ClientId == user.ClientId;
         bool isOwner = quickOrder.OwnerId == userId;
-        bool isSharedAndSameClient = quickOrder.IsSharedClientWide
-            && user.ClientId.HasValue
-            && quickOrder.Owner?.ClientId == user.ClientId;
+        bool isSharedAndSameClient = quickOrder.IsSharedClientWide && sameClient;
 
-        if (!isOwner && !isSharedAndSameClient)
+        if (!sameClient || (!isOwner && !isSharedAndSameClient))
             return Forbid();
 
         // Get or create shopping cart

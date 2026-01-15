@@ -22,6 +22,7 @@ public class QuickOrderMapper : IModelMapper<QuickOrder, QuickOrderEVM>
                 Id = view.Id,
                 Name = view.Name,
                 OwnerId = view.OwnerId,
+                ClientId = view.ClientId,
                 IsSharedClientWide = view.IsSharedClientWide,
                 CreatedAt = view.CreatedAt,
                 LastUsedAt = view.LastUsedAt,
@@ -38,6 +39,7 @@ public class QuickOrderMapper : IModelMapper<QuickOrder, QuickOrderEVM>
             quickOrder.TimesUsed = view.TimesUsed;
             quickOrder.IsDeleted = view.IsDeleted;
             quickOrder.DeletedAt = view.DeletedAt;
+            // Note: ClientId should not be updated after creation
         }
         return quickOrder;
     }
@@ -51,6 +53,8 @@ public class QuickOrderMapper : IModelMapper<QuickOrder, QuickOrderEVM>
             OwnerId = model.OwnerId,
             OwnerName = model.Owner != null ? $"{model.Owner.GivenName} {model.Owner.FamilyName}".Trim() : null,
             OwnerEmail = model.Owner?.Email,
+            ClientId = model.ClientId,
+            ClientName = model.Client?.Name,
             IsSharedClientWide = model.IsSharedClientWide,
             CreatedAt = model.CreatedAt,
             LastUsedAt = model.LastUsedAt,

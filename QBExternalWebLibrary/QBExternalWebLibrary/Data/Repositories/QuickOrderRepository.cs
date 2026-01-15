@@ -17,6 +17,7 @@ public class QuickOrderRepository : EFRepository<QuickOrder>
                 .ThenInclude(i => i.ContractItem)
             .Include(q => q.Tags)
             .Include(q => q.Owner)
+            .Include(q => q.Client)
             .Where(predicate)
             .ToList();
     }

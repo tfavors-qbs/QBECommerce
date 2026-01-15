@@ -1,11 +1,13 @@
 @page "/qbsales/quick-order-management"
 @using QBExternalWebLibrary.Models
 @using QBExternalWebLibrary.Models.Catalog
+@using QBExternalWebLibrary.Services.Http
 @using System.Net.Http.Json
 @using Microsoft.AspNetCore.Authorization
 @using ShopQualityboltWebBlazor.Components.CustomComponents
 @attribute [Authorize(Roles = "QBSales,Admin")]
 @inject IHttpClientFactory HttpClientFactory
+@inject QBSalesQuickOrderApiService QBSalesApi
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
@@ -157,17 +159,6 @@
     private List<QuickOrderEVM> _userQuickOrders = new();
     private bool _showDeleted;
 
-    public class UserQuickOrderInfo
-    {
-        public string UserId { get; set; } = "";
-        public string UserName { get; set; } = "";
-        public string UserEmail { get; set; } = "";
-        public int? ClientId { get; set; }
-        public string? ClientName { get; set; }
-        public int QuickOrderCount { get; set; }
-        public int DeletedQuickOrderCount { get; set; }
-    }
-
     protected override async Task OnInitializedAsync()
     {
         _httpClient = HttpClientFactory.CreateClient("Auth");
@@ -240,20 +231,52 @@
 
     private async Task CreateQuickOrderForUser()
     {
-        // Open dialog to create quick order for the selected user
-        Snackbar.Add("Create Quick Order dialog - to be implemented", Severity.Info);
+        if (_selectedUser == null || _selectedClient == null) return;
+
+        var parameters = new DialogParameters
+        {
+            { "UserId", _selectedUser.UserId },
+            { "UserName", _selectedUser.UserName },
+            { "UserEmail", _selectedUser.UserEmail },
+            { "ClientId", _selectedClient.Id }
+        };
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.ExtraLarge,
+            FullWidth = true,
+            CloseButton = true
+        };
+
+        var dialog = await DialogService.ShowAsync<CreateQuickOrderForUserDialog>(
+            "Create Quick Order",
+            parameters,
+            options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled)
+        {
+            // Refresh the user's quick orders and the count
+            await OnClientSelected(_selectedClient);
+            if (_selectedUser != null)
+            {
+                // Re-select the user to show updated orders
+                var updatedUser = _users.FirstOrDefault(u => u.UserId == _selectedUser.UserId);
+                if (updatedUser != null)
+                {
+                    await SelectUser(updatedUser);
+                }
+            }
+        }
     }
 
     private async Task ViewQuickOrder(QuickOrderEVM order)
     {
         var parameters = new DialogParameters
         {
-            { "QuickOrderId", order.Id },
-            { "IsNew", false },
-            { "IsReadOnly", true }
+            { "QuickOrderId", order.Id }
         };
         var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
-        await DialogService.ShowAsync<QuickOrderEditorDialog>("View Quick Order", parameters, options);
+        await DialogService.ShowAsync<QBSalesQuickOrderViewDialog>("View Quick Order", parameters, options);
     }
 
     private async Task RestoreQuickOrder(QuickOrderEVM order)

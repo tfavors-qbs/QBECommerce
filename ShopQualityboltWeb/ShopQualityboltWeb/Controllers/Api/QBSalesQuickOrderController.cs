@@ -6,6 +6,7 @@ using QBExternalWebLibrary.Data;
 using QBExternalWebLibrary.Models;
 using QBExternalWebLibrary.Models.Catalog;
 using QBExternalWebLibrary.Models.Mapping;
+using QBExternalWebLibrary.Models.Pages;
 using QBExternalWebLibrary.Services.Model;
 using System.Security.Claims;
 
@@ -90,6 +91,40 @@ public class QBSalesQuickOrderController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{id}")]
+    public ActionResult<QuickOrderDetailEVM> GetQuickOrder(int id)
+    {
+        var quickOrder = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
+        if (quickOrder == null) return NotFound("Quick Order not found");
+
+        var items = quickOrder.Items.Select(item =>
+        {
+            var contractItem = item.ContractItem;
+            return new QuickOrderItemEVM
+            {
+                Id = item.Id,
+                QuickOrderId = item.QuickOrderId,
+                ContractItemId = item.ContractItemId,
+                ContractItem = contractItem != null ? _contractItemMapper.MapToEdit(contractItem) : null,
+                Quantity = item.Quantity,
+                IsAvailable = contractItem != null
+            };
+        }).ToList();
+
+        var allTags = _tagService.GetAll()
+            .Select(t => t.Tag)
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+
+        return Ok(new QuickOrderDetailEVM
+        {
+            QuickOrder = _mapper.MapToEdit(quickOrder),
+            Items = items,
+            AvailableTags = allTags
+        });
+    }
+
     [HttpGet("user/{userId}")]
     public async Task<ActionResult<List<QuickOrderEVM>>> GetUserQuickOrders(string userId)
     {
@@ -143,11 +178,12 @@ public class QBSalesQuickOrderController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.Name))
             return BadRequest("Name is required");
 
-        // Create quick order with target user as owner
+        // Create quick order with target user as owner and their client
         var quickOrder = new QuickOrder
         {
             Name = request.Name.Trim(),
             OwnerId = userId, // Target user is owner
+            ClientId = targetUser.ClientId, // Quick order belongs to user's client
             IsSharedClientWide = request.IsSharedClientWide,
             CreatedAt = DateTime.UtcNow
         };
