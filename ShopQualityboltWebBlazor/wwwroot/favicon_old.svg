@@ -1,0 +1,18 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="teflonBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0077FF"/>
+      <stop offset="50%" stop-color="#0055CC"/>
+      <stop offset="100%" stop-color="#003399"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Hexagon outer shape -->
+  <polygon points="100,10 190,55 190,145 100,190 10,145 10,55" fill="url(#teflonBlue)" stroke="#003366" stroke-width="8"/>
+  
+  <!-- Inner hole with threads -->
+  <circle cx="100" cy="100" r="55" fill="none" stroke="#003366" stroke-width="6"/>
+  <circle cx="100" cy="100" r="50" fill="none" stroke="#003366" stroke-width="6"/>
+  <circle cx="100" cy="100" r="45" fill="none" stroke="#003366" stroke-width="6"/>
+  <circle cx="100" cy="100" r="40" fill="none" stroke="#003366" stroke-width="6"/>
+</svg>
