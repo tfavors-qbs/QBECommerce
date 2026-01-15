@@ -4,10 +4,12 @@
 @using QBExternalWebLibrary.Models.Pages
 @using QBExternalWebLibrary.Services.Http
 @using ShopQualityboltWebBlazor.Components.CustomComponents
+@using ShopQualityboltWebBlazor.Services
 @inject QuickOrderApiService QuickOrderApi
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
+@inject ShoppingCartManagementService ShoppingCartManagementService
 @attribute [Authorize]
 
 <PageTitle>Quick Orders</PageTitle>
@@ -283,6 +285,7 @@
 
         if (result != null)
         {
+            await ShoppingCartManagementService.RefreshUserShoppingCart();
             Snackbar.Add(result.Message, Severity.Success);
             await LoadData(); // Refresh to update LastUsedAt
         }
