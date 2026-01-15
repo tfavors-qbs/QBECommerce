@@ -1,0 +1,387 @@
+@using QBExternalWebLibrary.Models
+@using QBExternalWebLibrary.Models.Catalog
+@using QBExternalWebLibrary.Models.Products
+@using QBExternalWebLibrary.Services.Http
+@inject IApiService<ContractItem, ContractItemEditViewModel> ContractItemApi
+@inject IApiService<Diameter, Diameter> DiameterApi
+@inject IApiService<Length, Length> LengthApi
+@inject QuickOrderApiService QuickOrderApi
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Add Items to @QuickOrderName</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+            <MudText Align="Align.Center" Class="my-4">Loading catalog items...</MudText>
+        }
+        else
+        {
+            <MudGrid>
+                @* Filters Sidebar *@
+                <MudItem xs="12" md="3">
+                    <MudPaper Class="pa-3" Elevation="1" Style="max-height: 60vh; overflow-y: auto;">
+                        <MudStack Spacing="2">
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.subtitle1"><strong>Filters</strong></MudText>
+                                @if (HasActiveFilters())
+                                {
+                                    <MudButton Size="Size.Small" Color="Color.Secondary" OnClick="ClearAllFilters" StartIcon="@Icons.Material.Filled.Clear">
+                                        Clear
+                                    </MudButton>
+                                }
+                            </MudStack>
+                            <MudDivider />
+
+                            @* Search *@
+                            <MudTextField @bind-Value="_searchString"
+                                          @bind-Value:after="Filter"
+                                          Label="Search"
+                                          Variant="Variant.Outlined"
+                                          Adornment="Adornment.Start"
+                                          AdornmentIcon="@Icons.Material.Filled.Search"
+                                          Clearable="true"
+                                          Immediate="true"
+                                          DebounceInterval="300" />
+
+                            @* Class Filter *@
+                            @if (_classes?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0">
+                                    <MudExpansionPanel Text="Class" IsInitiallyExpanded="true" Dense="true">
+                                        <MudStack Spacing="0">
+                                            @foreach (var cls in _classes.Take(10))
+                                            {
+                                                <MudCheckBox T="bool"
+                                                             Value="@_selectedClasses.Contains(cls)"
+                                                             ValueChanged="@((bool val) => ToggleFilter(_selectedClasses, cls, val))"
+                                                             Label="@cls"
+                                                             Dense="true"
+                                                             Size="Size.Small" />
+                                            }
+                                            @if (_classes.Count > 10)
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">+@(_classes.Count - 10) more</MudText>
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
+                            }
+
+                            @* Group Filter *@
+                            @if (_groups?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0">
+                                    <MudExpansionPanel Text="Group" Dense="true">
+                                        <MudStack Spacing="0">
+                                            @foreach (var group in _groups.Take(10))
+                                            {
+                                                <MudCheckBox T="bool"
+                                                             Value="@_selectedGroups.Contains(group)"
+                                                             ValueChanged="@((bool val) => ToggleFilter(_selectedGroups, group, val))"
+                                                             Label="@group"
+                                                             Dense="true"
+                                                             Size="Size.Small" />
+                                            }
+                                            @if (_groups.Count > 10)
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">+@(_groups.Count - 10) more</MudText>
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
+                            }
+
+                            @* Material Filter *@
+                            @if (_materials?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0">
+                                    <MudExpansionPanel Text="Material" Dense="true">
+                                        <MudStack Spacing="0">
+                                            @foreach (var material in _materials.Take(10))
+                                            {
+                                                <MudCheckBox T="bool"
+                                                             Value="@_selectedMaterials.Contains(material)"
+                                                             ValueChanged="@((bool val) => ToggleFilter(_selectedMaterials, material, val))"
+                                                             Label="@material"
+                                                             Dense="true"
+                                                             Size="Size.Small" />
+                                            }
+                                            @if (_materials.Count > 10)
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">+@(_materials.Count - 10) more</MudText>
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
+                            }
+
+                            @* Diameter Filter *@
+                            @if (_diameters?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0">
+                                    <MudExpansionPanel Text="Diameter" Dense="true">
+                                        <MudStack Spacing="0">
+                                            @foreach (var diameter in _diameters.Take(10))
+                                            {
+                                                <MudCheckBox T="bool"
+                                                             Value="@_selectedDiameters.Contains(diameter)"
+                                                             ValueChanged="@((bool val) => ToggleFilter(_selectedDiameters, diameter, val))"
+                                                             Label="@diameter"
+                                                             Dense="true"
+                                                             Size="Size.Small" />
+                                            }
+                                            @if (_diameters.Count > 10)
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">+@(_diameters.Count - 10) more</MudText>
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
+                            }
+
+                            @* Length Filter *@
+                            @if (_lengths?.Any() == true)
+                            {
+                                <MudExpansionPanels Elevation="0">
+                                    <MudExpansionPanel Text="Length" Dense="true">
+                                        <MudStack Spacing="0">
+                                            @foreach (var length in _lengths.Take(10))
+                                            {
+                                                <MudCheckBox T="bool"
+                                                             Value="@_selectedLengths.Contains(length)"
+                                                             ValueChanged="@((bool val) => ToggleFilter(_selectedLengths, length, val))"
+                                                             Label="@length"
+                                                             Dense="true"
+                                                             Size="Size.Small" />
+                                            }
+                                            @if (_lengths.Count > 10)
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">+@(_lengths.Count - 10) more</MudText>
+                                            }
+                                        </MudStack>
+                                    </MudExpansionPanel>
+                                </MudExpansionPanels>
+                            }
+                        </MudStack>
+                    </MudPaper>
+                </MudItem>
+
+                @* Items Table *@
+                <MudItem xs="12" md="9">
+                    <MudText Typo="Typo.body2" Class="mb-2">
+                        Showing @_filteredItems.Count of @_allItems.Count items
+                        @if (_addedCount > 0)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Class="ml-2">@_addedCount added</MudChip>
+                        }
+                    </MudText>
+                    <MudTable Items="_filteredItems"
+                              Dense="true"
+                              Hover="true"
+                              FixedHeader="true"
+                              Height="50vh"
+                              RowsPerPage="25">
+                        <HeaderContent>
+                            <MudTh>Stock Number</MudTh>
+                            <MudTh>Description</MudTh>
+                            <MudTh>Price</MudTh>
+                            <MudTh Style="width: 100px;">Qty</MudTh>
+                            <MudTh Style="width: 80px;">Add</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Stock Number">@context.CustomerStkNo</MudTd>
+                            <MudTd DataLabel="Description">@context.Description</MudTd>
+                            <MudTd DataLabel="Price">@context.Price.ToString("C")</MudTd>
+                            <MudTd DataLabel="Qty">
+                                <MudNumericField @bind-Value="_quantities[context.Id]"
+                                                 Min="1"
+                                                 Variant="Variant.Outlined"
+                                                 Style="width: 70px;"
+                                                 HideSpinButtons="true" />
+                            </MudTd>
+                            <MudTd>
+                                <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                               Color="Color.Primary"
+                                               Size="Size.Small"
+                                               OnClick="@(() => AddItem(context))"
+                                               Disabled="@_addingItem" />
+                            </MudTd>
+                        </RowTemplate>
+                        <PagerContent>
+                            <MudTablePager PageSizeOptions="new int[] { 25, 50, 100 }" />
+                        </PagerContent>
+                    </MudTable>
+                </MudItem>
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Done</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int QuickOrderId { get; set; }
+
+    [Parameter]
+    public string QuickOrderName { get; set; } = "";
+
+    private bool _loading = true;
+    private bool _addingItem;
+    private int _addedCount;
+
+    private List<ContractItemEditViewModel> _allItems = new();
+    private List<ContractItemEditViewModel> _filteredItems = new();
+    private Dictionary<int, int> _quantities = new();
+
+    private List<Diameter> _allDiameters = new();
+    private List<Length> _allLengths = new();
+
+    // Filter options
+    private List<string> _classes = new();
+    private List<string> _groups = new();
+    private List<string> _materials = new();
+    private List<string> _diameters = new();
+    private List<string> _lengths = new();
+
+    // Selected filters
+    private HashSet<string> _selectedClasses = new();
+    private HashSet<string> _selectedGroups = new();
+    private HashSet<string> _selectedMaterials = new();
+    private HashSet<string> _selectedDiameters = new();
+    private HashSet<string> _selectedLengths = new();
+    private string _searchString = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _loading = true;
+
+        var items = await ContractItemApi.GetAllAsync();
+        if (items != null)
+        {
+            _allItems = items.ToList();
+            _allDiameters = (await DiameterApi.GetAllAsync())?.ToList() ?? new();
+            _allLengths = (await LengthApi.GetAllAsync())?.ToList() ?? new();
+
+            // Initialize quantities to 1 for all items
+            _quantities = _allItems.ToDictionary(i => i.Id, _ => 1);
+
+            // Build filter options
+            _classes = _allItems.Select(x => x.ClassName ?? "Uncategorized").Distinct().OrderBy(c => c).ToList();
+            _groups = _allItems.Select(x => x.GroupName ?? "No Group").Distinct().OrderBy(c => c).ToList();
+            _materials = _allItems.Select(x => x.MaterialName ?? "No Material").Distinct().OrderBy(m => m).ToList();
+
+            _diameters = _allItems
+                .Where(c => c.DiameterId.HasValue)
+                .Join(_allDiameters, c => c.DiameterId, d => d.Id, (c, d) => new { Name = c.DiameterName, Value = d.Value })
+                .OrderBy(x => x.Value)
+                .Select(x => x.Name)
+                .Distinct()
+                .Concat(new[] { "No Diameter" })
+                .ToList();
+
+            _lengths = _allItems
+                .Where(c => c.LengthId.HasValue)
+                .Join(_allLengths, c => c.LengthId, l => l.Id, (c, l) => new { Name = c.LengthName, Value = l.Value })
+                .OrderBy(x => x.Value)
+                .Select(x => x.Name)
+                .Distinct()
+                .Concat(new[] { "No Length" })
+                .ToList();
+
+            _filteredItems = _allItems.OrderBy(i => _allDiameters.FirstOrDefault(d => d.Id == i.DiameterId)?.Value ?? 0).ToList();
+        }
+
+        _loading = false;
+    }
+
+    private void Filter()
+    {
+        _filteredItems = _allItems;
+
+        if (_selectedClasses.Any())
+            _filteredItems = _filteredItems.Where(i => _selectedClasses.Contains(i.ClassName ?? "Uncategorized")).ToList();
+        if (_selectedGroups.Any())
+            _filteredItems = _filteredItems.Where(i => _selectedGroups.Contains(i.GroupName ?? "No Group")).ToList();
+        if (_selectedMaterials.Any())
+            _filteredItems = _filteredItems.Where(i => _selectedMaterials.Contains(i.MaterialName ?? "No Material")).ToList();
+        if (_selectedDiameters.Any())
+            _filteredItems = _filteredItems.Where(i => _selectedDiameters.Contains(i.DiameterName ?? "No Diameter")).ToList();
+        if (_selectedLengths.Any())
+            _filteredItems = _filteredItems.Where(i => _selectedLengths.Contains(i.LengthName ?? "No Length")).ToList();
+
+        // Text search
+        if (!string.IsNullOrWhiteSpace(_searchString))
+        {
+            var searchWords = _searchString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            _filteredItems = _filteredItems.Where(i =>
+                searchWords.All(word =>
+                    (i.Description?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.CustomerStkNo?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.ClassName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.GroupName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    (i.MaterialName?.Contains(word, StringComparison.OrdinalIgnoreCase) ?? false)
+                )
+            ).ToList();
+        }
+
+        _filteredItems = _filteredItems.OrderBy(i => _allDiameters.FirstOrDefault(d => d.Id == i.DiameterId)?.Value ?? 0).ToList();
+    }
+
+    private void ToggleFilter(HashSet<string> set, string value, bool add)
+    {
+        if (add) set.Add(value); else set.Remove(value);
+        Filter();
+    }
+
+    private bool HasActiveFilters()
+    {
+        return _selectedClasses.Any() || _selectedGroups.Any() || _selectedMaterials.Any() ||
+               _selectedDiameters.Any() || _selectedLengths.Any() || !string.IsNullOrWhiteSpace(_searchString);
+    }
+
+    private void ClearAllFilters()
+    {
+        _selectedClasses.Clear();
+        _selectedGroups.Clear();
+        _selectedMaterials.Clear();
+        _selectedDiameters.Clear();
+        _selectedLengths.Clear();
+        _searchString = "";
+        Filter();
+    }
+
+    private async Task AddItem(ContractItemEditViewModel item)
+    {
+        _addingItem = true;
+        var quantity = _quantities.GetValueOrDefault(item.Id, 1);
+
+        var result = await QuickOrderApi.AddItemAsync(QuickOrderId, item.Id, quantity);
+
+        if (result != null)
+        {
+            _addedCount++;
+            Snackbar.Add($"Added {item.CustomerStkNo} (qty: {quantity})", Severity.Success);
+            _quantities[item.Id] = 1; // Reset quantity after adding
+        }
+        else
+        {
+            Snackbar.Add($"Failed to add {item.CustomerStkNo}", Severity.Error);
+        }
+
+        _addingItem = false;
+    }
+
+    private void Close()
+    {
+        MudDialog.Close(DialogResult.Ok(_addedCount > 0));
+    }
+}

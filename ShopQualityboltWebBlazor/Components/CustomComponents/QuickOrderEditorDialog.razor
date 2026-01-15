@@ -2,6 +2,7 @@
 @using QBExternalWebLibrary.Models.Pages
 @using QBExternalWebLibrary.Services.Http
 @inject QuickOrderApiService QuickOrderApi
+@inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -294,9 +295,31 @@
 
     private async Task OpenAddItemDialog()
     {
-        // This would open a product search dialog
-        // For now, show a placeholder message
-        Snackbar.Add("Add items dialog - to be implemented", Severity.Info);
+        var parameters = new DialogParameters
+        {
+            { "QuickOrderId", QuickOrderId },
+            { "QuickOrderName", _name }
+        };
+        var options = new DialogOptions
+        {
+            MaxWidth = MaxWidth.Large,
+            FullWidth = true,
+            CloseButton = true
+        };
+
+        var dialog = await DialogService.ShowAsync<AddItemsToQuickOrderDialog>("Add Items", parameters, options);
+        var result = await dialog.Result;
+
+        if (result != null && !result.Canceled && result.Data is bool itemsAdded && itemsAdded)
+        {
+            // Refresh items list
+            var detail = await QuickOrderApi.GetByIdAsync(QuickOrderId);
+            if (detail != null)
+            {
+                _items = detail.Items;
+                _selectedItems = _items.ToDictionary(i => i.Id, _ => false);
+            }
+        }
     }
 
     private async Task AddSelectedToCart()
