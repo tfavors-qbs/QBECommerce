@@ -5,6 +5,8 @@ using QBExternalWebLibrary.Models.Products;
 using QBExternalWebLibrary.Services.Model;
 using Microsoft.AspNetCore.Authorization;
 using QBExternalWebLibrary.Data;
+using ShopQualityboltWeb.Services;
+using System.Security.Claims;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -13,64 +15,138 @@ namespace ShopQualityboltWeb.Controllers.Api
     public class ProductIDsApiController : ControllerBase {
         private readonly IModelService<ProductID, ProductIDEditViewModel> _service;
         private readonly DataContext _context;
+        private readonly IErrorLogService _errorLogService;
 
-        public ProductIDsApiController(IModelService<ProductID, ProductIDEditViewModel> service, DataContext context) {
+        public ProductIDsApiController(
+            IModelService<ProductID, ProductIDEditViewModel> service,
+            DataContext context,
+            IErrorLogService errorLogService) {
             _service = service;
             _context = context;
+            _errorLogService = errorLogService;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<ProductID>>> GetProductIDs() {
-            return _service.GetAll().ToList();
+            try {
+                return _service.GetAll().ToList();
+            } catch (Exception ex) {
+                await _errorLogService.LogErrorAsync(
+                    "ProductID Error",
+                    "Failed to Get ProductIDs",
+                    ex.Message,
+                    ex,
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
+                return StatusCode(500, new { message = "Failed to retrieve product IDs" });
+            }
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<ProductID>> GetProductID(int id) {
-            var productID = _service.GetById(id);
+            try {
+                var productID = _service.GetById(id);
 
-            if (productID == null) {
-                return NotFound();
+                if (productID == null) {
+                    return NotFound();
+                }
+
+                return productID;
+            } catch (Exception ex) {
+                await _errorLogService.LogErrorAsync(
+                    "ProductID Error",
+                    "Failed to Get ProductID",
+                    ex.Message,
+                    ex,
+                    additionalData: new { productIdId = id },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
+                return StatusCode(500, new { message = "Failed to retrieve product ID" });
             }
-
-            return productID;
         }
 
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> PutProductID(int id, ProductIDEditViewModel productIDEVM) {
-            if (id != productIDEVM.Id) {
-                return BadRequest();
-            }
             try {
-                _service.Update(null, productIDEVM);
-            } catch (DbUpdateConcurrencyException) {
-                if (!ProductIDExists(id)) {
-                    return NotFound();
-                } else {
-                    throw;
+                if (id != productIDEVM.Id) {
+                    return BadRequest();
                 }
-            }
+                try {
+                    _service.Update(null, productIDEVM);
+                } catch (DbUpdateConcurrencyException) {
+                    if (!ProductIDExists(id)) {
+                        return NotFound();
+                    } else {
+                        throw;
+                    }
+                }
 
-            return NoContent();
+                return NoContent();
+            } catch (Exception ex) {
+                await _errorLogService.LogErrorAsync(
+                    "ProductID Error",
+                    "Failed to Update ProductID",
+                    ex.Message,
+                    ex,
+                    additionalData: new { productIdId = id },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
+                return StatusCode(500, new { message = "Failed to update product ID" });
+            }
         }
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult<ProductID>> PostProductID(ProductIDEditViewModel productIDEVM) {
-            if (_service.GetAll().Any(p => p.LegacyName == productIDEVM.LegacyName)) {
-                return Conflict("ProductID with that name already exists.");
-            }
-            var productID = _service.Create(null, productIDEVM);
+            try {
+                if (_service.GetAll().Any(p => p.LegacyName == productIDEVM.LegacyName)) {
+                    return Conflict("ProductID with that name already exists.");
+                }
+                var productID = _service.Create(null, productIDEVM);
 
-            return CreatedAtAction("GetProductID", new { id = productID.Id }, productID);
+                return CreatedAtAction("GetProductID", new { id = productID.Id }, productID);
+            } catch (Exception ex) {
+                await _errorLogService.LogErrorAsync(
+                    "ProductID Error",
+                    "Failed to Create ProductID",
+                    ex.Message,
+                    ex,
+                    additionalData: new { legacyName = productIDEVM?.LegacyName },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
+                return StatusCode(500, new { message = "Failed to create product ID" });
+            }
         }
 
         [HttpPost("range")]
         [Authorize(Roles = "Admin")]
         public async Task<ActionResult> PostProductIDs([FromBody] List<ProductIDEditViewModel> productIDEVMs) {
-            productIDEVMs = productIDEVMs.Where(p => !_service.GetAll().Any(p2 => p2.LegacyName == p.LegacyName)).ToList();
-            _service.CreateRange(null, productIDEVMs);
-            return Ok();
+            try {
+                productIDEVMs = productIDEVMs.Where(p => !_service.GetAll().Any(p2 => p2.LegacyName == p.LegacyName)).ToList();
+                _service.CreateRange(null, productIDEVMs);
+                return Ok();
+            } catch (Exception ex) {
+                await _errorLogService.LogErrorAsync(
+                    "ProductID Error",
+                    "Failed to Create ProductIDs Range",
+                    ex.Message,
+                    ex,
+                    additionalData: new { count = productIDEVMs?.Count },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
+                return StatusCode(500, new { message = "Failed to create product IDs" });
+            }
         }
 
         /// <summary>
@@ -279,14 +355,28 @@ namespace ShopQualityboltWeb.Controllers.Api
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> DeleteProductID(int id) {
-            var productID = _service.GetById(id);
-            if (productID == null) {
-                return NotFound();
+            try {
+                var productID = _service.GetById(id);
+                if (productID == null) {
+                    return NotFound();
+                }
+
+                _service.Delete(productID);
+
+                return NoContent();
+            } catch (Exception ex) {
+                await _errorLogService.LogErrorAsync(
+                    "ProductID Error",
+                    "Failed to Delete ProductID",
+                    ex.Message,
+                    ex,
+                    additionalData: new { productIdId = id },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
+                return StatusCode(500, new { message = "Failed to delete product ID" });
             }
-
-            _service.Delete(productID);
-
-            return NoContent();
         }
 
         private bool ProductIDExists(int id) {
