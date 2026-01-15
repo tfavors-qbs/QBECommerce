@@ -287,6 +287,17 @@ builder.Services.AddScoped<IModelService<QuickOrder, QuickOrderEVM>, ModelServic
 builder.Services.AddScoped<IModelService<QuickOrderItem, QuickOrderItemEVM>, ModelService<QuickOrderItem, QuickOrderItemEVM>>();
 builder.Services.AddScoped<IModelService<QuickOrderTag, QuickOrderTag>, ModelService<QuickOrderTag, QuickOrderTag>>();
 
+// PastOrder services
+builder.Services.AddScoped<IRepository<PastOrder>, PastOrderRepository>();
+builder.Services.AddScoped<IRepository<PastOrderItem>, EFRepository<PastOrderItem>>();
+builder.Services.AddScoped<IRepository<PastOrderTag>, EFRepository<PastOrderTag>>();
+builder.Services.AddScoped<IModelMapper<PastOrder, PastOrderEVM>, PastOrderMapper>();
+builder.Services.AddScoped<IModelMapper<PastOrderItem, PastOrderItemEVM>, PastOrderItemMapper>();
+builder.Services.AddScoped<IModelMapper<PastOrderTag, PastOrderTag>, PastOrderTagMapper>();
+builder.Services.AddScoped<IModelService<PastOrder, PastOrderEVM>, ModelService<PastOrder, PastOrderEVM>>();
+builder.Services.AddScoped<IModelService<PastOrderItem, PastOrderItemEVM>, ModelService<PastOrderItem, PastOrderItemEVM>>();
+builder.Services.AddScoped<IModelService<PastOrderTag, PastOrderTag>, ModelService<PastOrderTag, PastOrderTag>>();
+
 // Register Error Log Service
 builder.Services.AddScoped<IErrorLogService, ErrorLogService>();
 
