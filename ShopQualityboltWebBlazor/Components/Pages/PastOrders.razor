@@ -3,7 +3,7 @@
 @using QBExternalWebLibrary.Models.Catalog
 @using QBExternalWebLibrary.Models.Pages
 @using QBExternalWebLibrary.Services.Http
-@* @using ShopQualityboltWebBlazor.Components.CustomComponents - Uncomment when PastOrderDetailDialog is created (Task 14) *@
+@using ShopQualityboltWebBlazor.Components.CustomComponents
 @inject PastOrderApiService PastOrderApi
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -200,20 +200,17 @@
 
     private async Task ViewOrder(PastOrderEVM order)
     {
-        // TODO: Uncomment when PastOrderDetailDialog is created (Task 14)
-        // var parameters = new DialogParameters
-        // {
-        //     { "OrderId", order.Id }
-        // };
-        // var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
-        // var dialog = await DialogService.ShowAsync<PastOrderDetailDialog>("Order Details", parameters, options);
-        // var result = await dialog.Result;
-        //
-        // if (!result.Canceled)
-        // {
-        //     await LoadData();
-        // }
-        await Task.CompletedTask;
-        Snackbar.Add("Order detail view coming soon", Severity.Info);
+        var parameters = new DialogParameters
+        {
+            { "OrderId", order.Id }
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Large, FullWidth = true, CloseButton = true };
+        var dialog = await DialogService.ShowAsync<PastOrderDetailDialog>("Order Details", parameters, options);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await LoadData();
+        }
     }
 }
