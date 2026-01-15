@@ -31,6 +31,9 @@ namespace QBExternalWebLibrary.Data
 		public DbSet<QuickOrder> QuickOrders { get; set; }
 		public DbSet<QuickOrderItem> QuickOrderItems { get; set; }
 		public DbSet<QuickOrderTag> QuickOrderTags { get; set; }
+		public DbSet<PastOrder> PastOrders { get; set; }
+		public DbSet<PastOrderItem> PastOrderItems { get; set; }
+		public DbSet<PastOrderTag> PastOrderTags { get; set; }
 		public DataContext(DbContextOptions<DataContext> options) : base(options) { }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) {
