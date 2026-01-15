@@ -8,6 +8,8 @@ using QBExternalWebLibrary.Models.Catalog;
 using QBExternalWebLibrary.Models.Mapping;
 using QBExternalWebLibrary.Models.Pages;
 using QBExternalWebLibrary.Services.Model;
+using ShopQualityboltWeb.Services;
+using System.Security.Claims;
 
 namespace ShopQualityboltWeb.Controllers.Api
 {
@@ -24,6 +26,7 @@ namespace ShopQualityboltWeb.Controllers.Api
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly DataContext _context;
         private readonly ILogger<QBSalesCartController> _logger;
+        private readonly IErrorLogService _errorLogService;
 
         public QBSalesCartController(
             IModelService<ShoppingCart, ShoppingCartEVM> shoppingCartService,
@@ -33,7 +36,8 @@ namespace ShopQualityboltWeb.Controllers.Api
             IModelMapper<ContractItem, ContractItemEditViewModel> contractItemMapper,
             UserManager<ApplicationUser> userManager,
             DataContext context,
-            ILogger<QBSalesCartController> logger)
+            ILogger<QBSalesCartController> logger,
+            IErrorLogService errorLogService)
         {
             _shoppingCartService = shoppingCartService;
             _shoppingCartItemService = shoppingCartItemService;
@@ -43,6 +47,7 @@ namespace ShopQualityboltWeb.Controllers.Api
             _userManager = userManager;
             _context = context;
             _logger = logger;
+            _errorLogService = errorLogService;
         }
 
         /// <summary>
@@ -95,6 +100,15 @@ namespace ShopQualityboltWeb.Controllers.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving shopping carts");
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "Failed to Get All Carts",
+                    ex.Message,
+                    ex,
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return StatusCode(500, "Internal server error while retrieving carts");
             }
         }
@@ -124,6 +138,16 @@ namespace ShopQualityboltWeb.Controllers.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving cart for user {UserId}", userId);
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "Failed to Get User Cart",
+                    ex.Message,
+                    ex,
+                    additionalData: new { targetUserId = userId },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return StatusCode(500, "Internal server error while retrieving user cart");
             }
         }
@@ -170,6 +194,16 @@ namespace ShopQualityboltWeb.Controllers.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving carts for client {ClientId}", clientId);
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "Failed to Get Carts by Client",
+                    ex.Message,
+                    ex,
+                    additionalData: new { clientId },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return StatusCode(500, "Internal server error while retrieving client carts");
             }
         }
@@ -254,14 +288,34 @@ namespace ShopQualityboltWeb.Controllers.Api
             }
             catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("FK_ShoppingCartItems_ContractItems") == true)
             {
-                _logger.LogError(ex, "FK constraint violation adding contract item {ContractItemId} to cart for user {UserId}. Contract item may have been deleted.", 
+                _logger.LogError(ex, "FK constraint violation adding contract item {ContractItemId} to cart for user {UserId}. Contract item may have been deleted.",
                     request.ContractItemId, userId);
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "FK Constraint Violation Adding Cart Item",
+                    ex.Message,
+                    ex,
+                    additionalData: new { targetUserId = userId, contractItemId = request.ContractItemId },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return BadRequest($"Contract item with ID {request.ContractItemId} is no longer available");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error adding item to cart for user {UserId}. ContractItemId: {ContractItemId}", 
+                _logger.LogError(ex, "Error adding item to cart for user {UserId}. ContractItemId: {ContractItemId}",
                     userId, request.ContractItemId);
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "Failed to Add Item to User Cart",
+                    ex.Message,
+                    ex,
+                    additionalData: new { targetUserId = userId, contractItemId = request.ContractItemId },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return StatusCode(500, $"Internal server error while adding item to cart: {ex.Message}");
             }
         }
@@ -298,6 +352,16 @@ namespace ShopQualityboltWeb.Controllers.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating cart item {ItemId} for user {UserId}", itemId, userId);
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "Failed to Update Cart Item",
+                    ex.Message,
+                    ex,
+                    additionalData: new { targetUserId = userId, itemId },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return StatusCode(500, "Internal server error while updating cart item");
             }
         }
@@ -333,6 +397,16 @@ namespace ShopQualityboltWeb.Controllers.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error removing cart item {ItemId} for user {UserId}", itemId, userId);
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "Failed to Remove Cart Item",
+                    ex.Message,
+                    ex,
+                    additionalData: new { targetUserId = userId, itemId },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return StatusCode(500, "Internal server error while removing cart item");
             }
         }
@@ -367,6 +441,16 @@ namespace ShopQualityboltWeb.Controllers.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error clearing cart for user {UserId}", userId);
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "Failed to Clear User Cart",
+                    ex.Message,
+                    ex,
+                    additionalData: new { targetUserId = userId },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return StatusCode(500, "Internal server error while clearing cart");
             }
         }
@@ -401,6 +485,16 @@ namespace ShopQualityboltWeb.Controllers.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error retrieving users for client {ClientId}", clientId);
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "Failed to Get Client Users",
+                    ex.Message,
+                    ex,
+                    additionalData: new { clientId },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return StatusCode(500, "Internal server error while retrieving users");
             }
         }
@@ -434,6 +528,16 @@ namespace ShopQualityboltWeb.Controllers.Api
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating cart for user {UserId}", userId);
+                await _errorLogService.LogErrorAsync(
+                    "QBSales Cart Error",
+                    "Failed to Create Cart for User",
+                    ex.Message,
+                    ex,
+                    additionalData: new { targetUserId = userId },
+                    userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                    userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                    requestUrl: HttpContext.Request.Path,
+                    httpMethod: HttpContext.Request.Method);
                 return StatusCode(500, "Internal server error while creating cart");
             }
         }

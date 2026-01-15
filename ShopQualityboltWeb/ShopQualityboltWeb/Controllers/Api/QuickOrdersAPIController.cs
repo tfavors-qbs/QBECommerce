@@ -6,6 +6,7 @@ using QBExternalWebLibrary.Models.Catalog;
 using QBExternalWebLibrary.Models.Mapping;
 using QBExternalWebLibrary.Models.Pages;
 using QBExternalWebLibrary.Services.Model;
+using ShopQualityboltWeb.Services;
 using System.Security.Claims;
 
 namespace ShopQualityboltWeb.Controllers.Api;
@@ -23,6 +24,7 @@ public class QuickOrdersAPIController : ControllerBase
     private readonly IModelMapper<ContractItem, ContractItemEditViewModel> _contractItemMapper;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<QuickOrdersAPIController> _logger;
+    private readonly IErrorLogService _errorLogService;
 
     public QuickOrdersAPIController(
         IModelService<QuickOrder, QuickOrderEVM> quickOrderService,
@@ -32,7 +34,8 @@ public class QuickOrdersAPIController : ControllerBase
         IModelMapper<QuickOrder, QuickOrderEVM> mapper,
         IModelMapper<ContractItem, ContractItemEditViewModel> contractItemMapper,
         UserManager<ApplicationUser> userManager,
-        ILogger<QuickOrdersAPIController> logger)
+        ILogger<QuickOrdersAPIController> logger,
+        IErrorLogService errorLogService)
     {
         _quickOrderService = quickOrderService;
         _quickOrderItemService = quickOrderItemService;
@@ -42,113 +45,147 @@ public class QuickOrdersAPIController : ControllerBase
         _contractItemMapper = contractItemMapper;
         _userManager = userManager;
         _logger = logger;
+        _errorLogService = errorLogService;
     }
 
     [HttpGet]
     public async Task<ActionResult<QuickOrderPageEVM>> GetQuickOrders()
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
-
-        var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return NotFound("User not found");
-
-        var pageEVM = new QuickOrderPageEVM();
-
-        // Get user's own quick orders for their current client (not deleted)
-        // Users only see quick orders that belong to their current client
-        var myOrders = _quickOrderService
-            .FindFullyIncluded(q => q.OwnerId == userId
-                && !q.IsDeleted
-                && q.ClientId == user.ClientId)
-            .ToList();
-        pageEVM.MyQuickOrders = myOrders.Select(q => MapToEVMWithOwnership(q, userId)).ToList();
-
-        // Get shared quick orders from same client (not deleted, not owned by user)
-        if (user.ClientId.HasValue)
+        try
         {
-            var sharedOrders = _quickOrderService
-                .FindFullyIncluded(q => q.IsSharedClientWide
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound("User not found");
+
+            var pageEVM = new QuickOrderPageEVM();
+
+            // Get user's own quick orders for their current client (not deleted)
+            // Users only see quick orders that belong to their current client
+            var myOrders = _quickOrderService
+                .FindFullyIncluded(q => q.OwnerId == userId
                     && !q.IsDeleted
-                    && q.OwnerId != userId
                     && q.ClientId == user.ClientId)
                 .ToList();
-            pageEVM.SharedQuickOrders = sharedOrders.Select(q => MapToEVMWithOwnership(q, userId)).ToList();
+            pageEVM.MyQuickOrders = myOrders.Select(q => MapToEVMWithOwnership(q, userId)).ToList();
+
+            // Get shared quick orders from same client (not deleted, not owned by user)
+            if (user.ClientId.HasValue)
+            {
+                var sharedOrders = _quickOrderService
+                    .FindFullyIncluded(q => q.IsSharedClientWide
+                        && !q.IsDeleted
+                        && q.OwnerId != userId
+                        && q.ClientId == user.ClientId)
+                    .ToList();
+                pageEVM.SharedQuickOrders = sharedOrders.Select(q => MapToEVMWithOwnership(q, userId)).ToList();
+            }
+
+            // Get all tags user has used
+            var allTags = _tagService
+                .Find(t => myOrders.Select(o => o.Id).Contains(t.QuickOrderId))
+                .Select(t => t.Tag)
+                .Distinct()
+                .OrderBy(t => t)
+                .ToList();
+            pageEVM.AllTags = allTags;
+
+            return Ok(pageEVM);
         }
-
-        // Get all tags user has used
-        var allTags = _tagService
-            .Find(t => myOrders.Select(o => o.Id).Contains(t.QuickOrderId))
-            .Select(t => t.Tag)
-            .Distinct()
-            .OrderBy(t => t)
-            .ToList();
-        pageEVM.AllTags = allTags;
-
-        return Ok(pageEVM);
+        catch (Exception ex)
+        {
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Get Quick Orders",
+                ex.Message,
+                ex,
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to retrieve quick orders" });
+        }
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<QuickOrderDetailEVM>> GetQuickOrder(int id)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
-
-        var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return NotFound("User not found");
-
-        var quickOrder = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
-        if (quickOrder == null) return NotFound("Quick Order not found");
-
-        // Check access: must be same client AND (owner OR shared)
-        bool sameClient = user.ClientId.HasValue && quickOrder.ClientId == user.ClientId;
-        bool isOwner = quickOrder.OwnerId == userId;
-        bool isSharedAndSameClient = quickOrder.IsSharedClientWide && sameClient;
-
-        if (!sameClient || (!isOwner && !isSharedAndSameClient))
-            return Forbid();
-
-        // Don't show deleted unless owner
-        if (quickOrder.IsDeleted && !isOwner)
-            return NotFound("Quick Order not found");
-
-        var detailEVM = new QuickOrderDetailEVM
+        try
         {
-            QuickOrder = MapToEVMWithOwnership(quickOrder, userId)
-        };
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
 
-        // Get items with availability check
-        var items = _quickOrderItemService
-            .FindInclude(i => i.QuickOrderId == id, i => i.ContractItem)
-            .ToList();
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound("User not found");
 
-        var clientContractItems = user.ClientId.HasValue
-            ? _contractItemService.Find(c => c.ClientId == user.ClientId).ToList()
-            : new List<ContractItem>();
+            var quickOrder = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
+            if (quickOrder == null) return NotFound("Quick Order not found");
 
-        detailEVM.Items = items.Select(item =>
-        {
-            var contractItem = clientContractItems.FirstOrDefault(c => c.Id == item.ContractItemId);
-            return new QuickOrderItemEVM
+            // Check access: must be same client AND (owner OR shared)
+            bool sameClient = user.ClientId.HasValue && quickOrder.ClientId == user.ClientId;
+            bool isOwner = quickOrder.OwnerId == userId;
+            bool isSharedAndSameClient = quickOrder.IsSharedClientWide && sameClient;
+
+            if (!sameClient || (!isOwner && !isSharedAndSameClient))
+                return Forbid();
+
+            // Don't show deleted unless owner
+            if (quickOrder.IsDeleted && !isOwner)
+                return NotFound("Quick Order not found");
+
+            var detailEVM = new QuickOrderDetailEVM
             {
-                Id = item.Id,
-                QuickOrderId = item.QuickOrderId,
-                ContractItemId = item.ContractItemId,
-                ContractItem = contractItem != null ? _contractItemMapper.MapToEdit(contractItem) : null,
-                Quantity = item.Quantity,
-                IsAvailable = contractItem != null
+                QuickOrder = MapToEVMWithOwnership(quickOrder, userId)
             };
-        }).ToList();
 
-        // Get available tags for autocomplete
-        detailEVM.AvailableTags = _tagService
-            .Find(t => t.QuickOrder.OwnerId == userId)
-            .Select(t => t.Tag)
-            .Distinct()
-            .OrderBy(t => t)
-            .ToList();
+            // Get items with availability check
+            var items = _quickOrderItemService
+                .FindInclude(i => i.QuickOrderId == id, i => i.ContractItem)
+                .ToList();
 
-        return Ok(detailEVM);
+            var clientContractItems = user.ClientId.HasValue
+                ? _contractItemService.Find(c => c.ClientId == user.ClientId).ToList()
+                : new List<ContractItem>();
+
+            detailEVM.Items = items.Select(item =>
+            {
+                var contractItem = clientContractItems.FirstOrDefault(c => c.Id == item.ContractItemId);
+                return new QuickOrderItemEVM
+                {
+                    Id = item.Id,
+                    QuickOrderId = item.QuickOrderId,
+                    ContractItemId = item.ContractItemId,
+                    ContractItem = contractItem != null ? _contractItemMapper.MapToEdit(contractItem) : null,
+                    Quantity = item.Quantity,
+                    IsAvailable = contractItem != null
+                };
+            }).ToList();
+
+            // Get available tags for autocomplete
+            detailEVM.AvailableTags = _tagService
+                .Find(t => t.QuickOrder.OwnerId == userId)
+                .Select(t => t.Tag)
+                .Distinct()
+                .OrderBy(t => t)
+                .ToList();
+
+            return Ok(detailEVM);
+        }
+        catch (Exception ex)
+        {
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Get Quick Order",
+                ex.Message,
+                ex,
+                additionalData: new { quickOrderId = id },
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to retrieve quick order" });
+        }
     }
 
     private QuickOrderEVM MapToEVMWithOwnership(QuickOrder model, string currentUserId)
@@ -182,192 +219,260 @@ public class QuickOrdersAPIController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<QuickOrderEVM>> CreateQuickOrder([FromBody] CreateQuickOrderRequest request)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
-
-        var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return NotFound("User not found");
-
-        if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest("Name is required");
-
-        // Create quick order - ClientId is set from user's current client
-        var quickOrder = new QuickOrder
+        try
         {
-            Name = request.Name.Trim(),
-            OwnerId = userId,
-            ClientId = user.ClientId,
-            IsSharedClientWide = request.IsSharedClientWide,
-            CreatedAt = DateTime.UtcNow
-        };
-        _quickOrderService.Create(quickOrder);
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
 
-        // Add tags
-        foreach (var tag in request.Tags.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct())
-        {
-            _tagService.Create(new QuickOrderTag
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound("User not found");
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return BadRequest("Name is required");
+
+            // Create quick order - ClientId is set from user's current client
+            var quickOrder = new QuickOrder
             {
-                QuickOrderId = quickOrder.Id,
-                Tag = tag.Trim()
-            });
-        }
+                Name = request.Name.Trim(),
+                OwnerId = userId,
+                ClientId = user.ClientId,
+                IsSharedClientWide = request.IsSharedClientWide,
+                CreatedAt = DateTime.UtcNow
+            };
+            _quickOrderService.Create(quickOrder);
 
-        // Add items if provided
-        if (request.Items != null)
-        {
-            foreach (var itemReq in request.Items)
+            // Add tags
+            foreach (var tag in request.Tags.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct())
             {
-                // Validate contract item belongs to user's client
-                var contractItem = _contractItemService
-                    .Find(c => c.Id == itemReq.ContractItemId && c.ClientId == user.ClientId)
-                    .FirstOrDefault();
-
-                if (contractItem != null)
+                _tagService.Create(new QuickOrderTag
                 {
-                    _quickOrderItemService.Create(new QuickOrderItem
+                    QuickOrderId = quickOrder.Id,
+                    Tag = tag.Trim()
+                });
+            }
+
+            // Add items if provided
+            if (request.Items != null)
+            {
+                foreach (var itemReq in request.Items)
+                {
+                    // Validate contract item belongs to user's client
+                    var contractItem = _contractItemService
+                        .Find(c => c.Id == itemReq.ContractItemId && c.ClientId == user.ClientId)
+                        .FirstOrDefault();
+
+                    if (contractItem != null)
                     {
-                        QuickOrderId = quickOrder.Id,
-                        ContractItemId = itemReq.ContractItemId,
-                        Quantity = itemReq.Quantity
-                    });
+                        _quickOrderItemService.Create(new QuickOrderItem
+                        {
+                            QuickOrderId = quickOrder.Id,
+                            ContractItemId = itemReq.ContractItemId,
+                            Quantity = itemReq.Quantity
+                        });
+                    }
                 }
             }
+
+            _logger.LogInformation("User {UserId} created Quick Order {QuickOrderId}: {Name}",
+                userId, quickOrder.Id, quickOrder.Name);
+
+            return CreatedAtAction(nameof(GetQuickOrder), new { id = quickOrder.Id },
+                MapToEVMWithOwnership(quickOrder, userId));
         }
-
-        _logger.LogInformation("User {UserId} created Quick Order {QuickOrderId}: {Name}",
-            userId, quickOrder.Id, quickOrder.Name);
-
-        return CreatedAtAction(nameof(GetQuickOrder), new { id = quickOrder.Id },
-            MapToEVMWithOwnership(quickOrder, userId));
+        catch (Exception ex)
+        {
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Create Quick Order",
+                ex.Message,
+                ex,
+                additionalData: new { name = request?.Name, isShared = request?.IsSharedClientWide },
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to create quick order" });
+        }
     }
 
     [HttpPut("{id}")]
     public async Task<ActionResult<QuickOrderEVM>> UpdateQuickOrder(int id, [FromBody] UpdateQuickOrderRequest request)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
-
-        var quickOrder = _quickOrderService.GetById(id);
-        if (quickOrder == null) return NotFound("Quick Order not found");
-
-        // Only owner can update
-        if (quickOrder.OwnerId != userId)
-            return Forbid();
-
-        if (string.IsNullOrWhiteSpace(request.Name))
-            return BadRequest("Name is required");
-
-        // Update basic properties
-        quickOrder.Name = request.Name.Trim();
-        quickOrder.IsSharedClientWide = request.IsSharedClientWide;
-        _quickOrderService.Update(quickOrder);
-
-        // Update tags: remove old, add new
-        var existingTags = _tagService.Find(t => t.QuickOrderId == id).ToList();
-        _tagService.DeleteRange(existingTags);
-
-        foreach (var tag in request.Tags.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct())
+        try
         {
-            _tagService.Create(new QuickOrderTag
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
+            var quickOrder = _quickOrderService.GetById(id);
+            if (quickOrder == null) return NotFound("Quick Order not found");
+
+            // Only owner can update
+            if (quickOrder.OwnerId != userId)
+                return Forbid();
+
+            if (string.IsNullOrWhiteSpace(request.Name))
+                return BadRequest("Name is required");
+
+            // Update basic properties
+            quickOrder.Name = request.Name.Trim();
+            quickOrder.IsSharedClientWide = request.IsSharedClientWide;
+            _quickOrderService.Update(quickOrder);
+
+            // Update tags: remove old, add new
+            var existingTags = _tagService.Find(t => t.QuickOrderId == id).ToList();
+            _tagService.DeleteRange(existingTags);
+
+            foreach (var tag in request.Tags.Where(t => !string.IsNullOrWhiteSpace(t)).Distinct())
             {
-                QuickOrderId = id,
-                Tag = tag.Trim()
-            });
+                _tagService.Create(new QuickOrderTag
+                {
+                    QuickOrderId = id,
+                    Tag = tag.Trim()
+                });
+            }
+
+            _logger.LogInformation("User {UserId} updated Quick Order {QuickOrderId}", userId, id);
+
+            var updated = _quickOrderService.FindFullyIncluded(q => q.Id == id).First();
+            return Ok(MapToEVMWithOwnership(updated, userId));
         }
-
-        _logger.LogInformation("User {UserId} updated Quick Order {QuickOrderId}", userId, id);
-
-        var updated = _quickOrderService.FindFullyIncluded(q => q.Id == id).First();
-        return Ok(MapToEVMWithOwnership(updated, userId));
+        catch (Exception ex)
+        {
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Update Quick Order",
+                ex.Message,
+                ex,
+                additionalData: new { quickOrderId = id, name = request?.Name },
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to update quick order" });
+        }
     }
 
     [HttpDelete("{id}")]
     public async Task<ActionResult> DeleteQuickOrder(int id)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
 
-        var quickOrder = _quickOrderService.GetById(id);
-        if (quickOrder == null) return NotFound("Quick Order not found");
+            var quickOrder = _quickOrderService.GetById(id);
+            if (quickOrder == null) return NotFound("Quick Order not found");
 
-        // Only owner can delete
-        if (quickOrder.OwnerId != userId)
-            return Forbid();
+            // Only owner can delete
+            if (quickOrder.OwnerId != userId)
+                return Forbid();
 
-        // Soft delete
-        quickOrder.IsDeleted = true;
-        quickOrder.DeletedAt = DateTime.UtcNow;
-        _quickOrderService.Update(quickOrder);
+            // Soft delete
+            quickOrder.IsDeleted = true;
+            quickOrder.DeletedAt = DateTime.UtcNow;
+            _quickOrderService.Update(quickOrder);
 
-        _logger.LogInformation("User {UserId} deleted Quick Order {QuickOrderId}", userId, id);
+            _logger.LogInformation("User {UserId} deleted Quick Order {QuickOrderId}", userId, id);
 
-        return NoContent();
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Delete Quick Order",
+                ex.Message,
+                ex,
+                additionalData: new { quickOrderId = id },
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to delete quick order" });
+        }
     }
 
     [HttpPost("{id}/copy")]
     public async Task<ActionResult<QuickOrderEVM>> CopyQuickOrder(int id)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
-
-        var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return NotFound("User not found");
-
-        var source = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
-        if (source == null) return NotFound("Quick Order not found");
-
-        // Check access: must be same client AND (owner OR shared)
-        bool sameClient = user.ClientId.HasValue && source.ClientId == user.ClientId;
-        bool isOwner = source.OwnerId == userId;
-        bool isSharedAndSameClient = source.IsSharedClientWide && sameClient;
-
-        if (!sameClient || (!isOwner && !isSharedAndSameClient))
-            return Forbid();
-
-        // Create copy - belongs to user's current client
-        var copy = new QuickOrder
+        try
         {
-            Name = $"{source.Name} (Copy)",
-            OwnerId = userId,
-            ClientId = user.ClientId,
-            IsSharedClientWide = false, // Copies are private by default
-            CreatedAt = DateTime.UtcNow
-        };
-        _quickOrderService.Create(copy);
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
 
-        // Copy tags
-        if (source.Tags != null)
-        {
-            foreach (var tag in source.Tags)
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound("User not found");
+
+            var source = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
+            if (source == null) return NotFound("Quick Order not found");
+
+            // Check access: must be same client AND (owner OR shared)
+            bool sameClient = user.ClientId.HasValue && source.ClientId == user.ClientId;
+            bool isOwner = source.OwnerId == userId;
+            bool isSharedAndSameClient = source.IsSharedClientWide && sameClient;
+
+            if (!sameClient || (!isOwner && !isSharedAndSameClient))
+                return Forbid();
+
+            // Create copy - belongs to user's current client
+            var copy = new QuickOrder
             {
-                _tagService.Create(new QuickOrderTag
-                {
-                    QuickOrderId = copy.Id,
-                    Tag = tag.Tag
-                });
-            }
-        }
+                Name = $"{source.Name} (Copy)",
+                OwnerId = userId,
+                ClientId = user.ClientId,
+                IsSharedClientWide = false, // Copies are private by default
+                CreatedAt = DateTime.UtcNow
+            };
+            _quickOrderService.Create(copy);
 
-        // Copy items
-        if (source.Items != null)
-        {
-            foreach (var item in source.Items)
+            // Copy tags
+            if (source.Tags != null)
             {
-                _quickOrderItemService.Create(new QuickOrderItem
+                foreach (var tag in source.Tags)
                 {
-                    QuickOrderId = copy.Id,
-                    ContractItemId = item.ContractItemId,
-                    Quantity = item.Quantity
-                });
+                    _tagService.Create(new QuickOrderTag
+                    {
+                        QuickOrderId = copy.Id,
+                        Tag = tag.Tag
+                    });
+                }
             }
+
+            // Copy items
+            if (source.Items != null)
+            {
+                foreach (var item in source.Items)
+                {
+                    _quickOrderItemService.Create(new QuickOrderItem
+                    {
+                        QuickOrderId = copy.Id,
+                        ContractItemId = item.ContractItemId,
+                        Quantity = item.Quantity
+                    });
+                }
+            }
+
+            _logger.LogInformation("User {UserId} copied Quick Order {SourceId} to {CopyId}",
+                userId, id, copy.Id);
+
+            var result = _quickOrderService.FindFullyIncluded(q => q.Id == copy.Id).First();
+            return CreatedAtAction(nameof(GetQuickOrder), new { id = copy.Id },
+                MapToEVMWithOwnership(result, userId));
         }
-
-        _logger.LogInformation("User {UserId} copied Quick Order {SourceId} to {CopyId}",
-            userId, id, copy.Id);
-
-        var result = _quickOrderService.FindFullyIncluded(q => q.Id == copy.Id).First();
-        return CreatedAtAction(nameof(GetQuickOrder), new { id = copy.Id },
-            MapToEVMWithOwnership(result, userId));
+        catch (Exception ex)
+        {
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Copy Quick Order",
+                ex.Message,
+                ex,
+                additionalData: new { sourceQuickOrderId = id },
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to copy quick order" });
+        }
     }
 
     public class AddToCartRequest
@@ -378,101 +483,118 @@ public class QuickOrdersAPIController : ControllerBase
     [HttpPost("{id}/add-to-cart")]
     public async Task<ActionResult<AddToCartResult>> AddToCart(int id, [FromBody] AddToCartRequest request)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
-
-        var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return NotFound("User not found");
-
-        var quickOrder = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
-        if (quickOrder == null) return NotFound("Quick Order not found");
-
-        // Check access: must be same client AND (owner OR shared)
-        bool sameClient = user.ClientId.HasValue && quickOrder.ClientId == user.ClientId;
-        bool isOwner = quickOrder.OwnerId == userId;
-        bool isSharedAndSameClient = quickOrder.IsSharedClientWide && sameClient;
-
-        if (!sameClient || (!isOwner && !isSharedAndSameClient))
-            return Forbid();
-
-        // Get or create shopping cart
-        var shoppingCartService = HttpContext.RequestServices
-            .GetRequiredService<IModelService<ShoppingCart, ShoppingCartEVM>>();
-        var shoppingCartItemService = HttpContext.RequestServices
-            .GetRequiredService<IModelService<ShoppingCartItem, ShoppingCartItemEVM?>>();
-
-        var cart = shoppingCartService.Find(c => c.ApplicationUserId == userId).FirstOrDefault();
-        if (cart == null)
+        try
         {
-            cart = new ShoppingCart { ApplicationUserId = userId };
-            shoppingCartService.Create(cart);
-        }
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
 
-        var existingCartItems = shoppingCartItemService
-            .Find(i => i.ShoppingCartId == cart.Id)
-            .ToList();
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound("User not found");
 
-        // Get valid contract items for user's client
-        var clientContractItems = user.ClientId.HasValue
-            ? _contractItemService.Find(c => c.ClientId == user.ClientId).Select(c => c.Id).ToHashSet()
-            : new HashSet<int>();
+            var quickOrder = _quickOrderService.FindFullyIncluded(q => q.Id == id).FirstOrDefault();
+            if (quickOrder == null) return NotFound("Quick Order not found");
 
-        int addedCount = 0;
-        int skippedCount = 0;
+            // Check access: must be same client AND (owner OR shared)
+            bool sameClient = user.ClientId.HasValue && quickOrder.ClientId == user.ClientId;
+            bool isOwner = quickOrder.OwnerId == userId;
+            bool isSharedAndSameClient = quickOrder.IsSharedClientWide && sameClient;
 
-        var itemsToAdd = quickOrder.Items ?? new List<QuickOrderItem>();
-        if (request.SelectedItemIds != null)
-        {
-            itemsToAdd = itemsToAdd.Where(i => request.SelectedItemIds.Contains(i.Id)).ToList();
-        }
+            if (!sameClient || (!isOwner && !isSharedAndSameClient))
+                return Forbid();
 
-        foreach (var item in itemsToAdd)
-        {
-            // Skip unavailable items
-            if (!clientContractItems.Contains(item.ContractItemId))
+            // Get or create shopping cart
+            var shoppingCartService = HttpContext.RequestServices
+                .GetRequiredService<IModelService<ShoppingCart, ShoppingCartEVM>>();
+            var shoppingCartItemService = HttpContext.RequestServices
+                .GetRequiredService<IModelService<ShoppingCartItem, ShoppingCartItemEVM?>>();
+
+            var cart = shoppingCartService.Find(c => c.ApplicationUserId == userId).FirstOrDefault();
+            if (cart == null)
             {
-                skippedCount++;
-                continue;
+                cart = new ShoppingCart { ApplicationUserId = userId };
+                shoppingCartService.Create(cart);
             }
 
-            var existingCartItem = existingCartItems
-                .FirstOrDefault(ci => ci.ContractItemId == item.ContractItemId);
+            var existingCartItems = shoppingCartItemService
+                .Find(i => i.ShoppingCartId == cart.Id)
+                .ToList();
 
-            if (existingCartItem != null)
+            // Get valid contract items for user's client
+            var clientContractItems = user.ClientId.HasValue
+                ? _contractItemService.Find(c => c.ClientId == user.ClientId).Select(c => c.Id).ToHashSet()
+                : new HashSet<int>();
+
+            int addedCount = 0;
+            int skippedCount = 0;
+
+            var itemsToAdd = quickOrder.Items ?? new List<QuickOrderItem>();
+            if (request.SelectedItemIds != null)
             {
-                // Add to existing quantity
-                existingCartItem.Quantity += item.Quantity;
-                shoppingCartItemService.Update(existingCartItem);
+                itemsToAdd = itemsToAdd.Where(i => request.SelectedItemIds.Contains(i.Id)).ToList();
             }
-            else
+
+            foreach (var item in itemsToAdd)
             {
-                // Create new cart item
-                shoppingCartItemService.Create(new ShoppingCartItem
+                // Skip unavailable items
+                if (!clientContractItems.Contains(item.ContractItemId))
                 {
-                    ShoppingCartId = cart.Id,
-                    ContractItemId = item.ContractItemId,
-                    Quantity = item.Quantity
-                });
+                    skippedCount++;
+                    continue;
+                }
+
+                var existingCartItem = existingCartItems
+                    .FirstOrDefault(ci => ci.ContractItemId == item.ContractItemId);
+
+                if (existingCartItem != null)
+                {
+                    // Add to existing quantity
+                    existingCartItem.Quantity += item.Quantity;
+                    shoppingCartItemService.Update(existingCartItem);
+                }
+                else
+                {
+                    // Create new cart item
+                    shoppingCartItemService.Create(new ShoppingCartItem
+                    {
+                        ShoppingCartId = cart.Id,
+                        ContractItemId = item.ContractItemId,
+                        Quantity = item.Quantity
+                    });
+                }
+                addedCount++;
             }
-            addedCount++;
+
+            // Update analytics
+            quickOrder.LastUsedAt = DateTime.UtcNow;
+            quickOrder.TimesUsed++;
+            _quickOrderService.Update(quickOrder);
+
+            _logger.LogInformation("User {UserId} added {Count} items from Quick Order {QuickOrderId} to cart",
+                userId, addedCount, id);
+
+            return Ok(new AddToCartResult
+            {
+                AddedCount = addedCount,
+                SkippedCount = skippedCount,
+                Message = skippedCount > 0
+                    ? $"Added {addedCount} items ({skippedCount} unavailable items skipped)"
+                    : $"Added {addedCount} items to cart"
+            });
         }
-
-        // Update analytics
-        quickOrder.LastUsedAt = DateTime.UtcNow;
-        quickOrder.TimesUsed++;
-        _quickOrderService.Update(quickOrder);
-
-        _logger.LogInformation("User {UserId} added {Count} items from Quick Order {QuickOrderId} to cart",
-            userId, addedCount, id);
-
-        return Ok(new AddToCartResult
+        catch (Exception ex)
         {
-            AddedCount = addedCount,
-            SkippedCount = skippedCount,
-            Message = skippedCount > 0
-                ? $"Added {addedCount} items ({skippedCount} unavailable items skipped)"
-                : $"Added {addedCount} items to cart"
-        });
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Add Quick Order Items to Cart",
+                ex.Message,
+                ex,
+                additionalData: new { quickOrderId = id },
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to add items to cart" });
+        }
     }
 
     public class AddToCartResult
@@ -485,131 +607,198 @@ public class QuickOrdersAPIController : ControllerBase
     [HttpGet("tags")]
     public async Task<ActionResult<List<string>>> GetTags()
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
 
-        var tags = _tagService
-            .Find(t => t.QuickOrder.OwnerId == userId)
-            .Select(t => t.Tag)
-            .Distinct()
-            .OrderBy(t => t)
-            .ToList();
+            var tags = _tagService
+                .Find(t => t.QuickOrder.OwnerId == userId)
+                .Select(t => t.Tag)
+                .Distinct()
+                .OrderBy(t => t)
+                .ToList();
 
-        return Ok(tags);
+            return Ok(tags);
+        }
+        catch (Exception ex)
+        {
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Get Tags",
+                ex.Message,
+                ex,
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to retrieve tags" });
+        }
     }
 
     [HttpPost("{id}/items")]
     public async Task<ActionResult<QuickOrderItemEVM>> AddItem(int id, [FromBody] QuickOrderItemRequest request)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
-
-        var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return NotFound("User not found");
-
-        var quickOrder = _quickOrderService.GetById(id);
-        if (quickOrder == null) return NotFound("Quick Order not found");
-
-        if (quickOrder.OwnerId != userId)
-            return Forbid();
-
-        // Validate contract item
-        var contractItem = _contractItemService
-            .Find(c => c.Id == request.ContractItemId && c.ClientId == user.ClientId)
-            .FirstOrDefault();
-
-        if (contractItem == null)
-            return BadRequest("Invalid or unauthorized contract item");
-
-        // Check if item already exists
-        var existingItem = _quickOrderItemService
-            .Find(i => i.QuickOrderId == id && i.ContractItemId == request.ContractItemId)
-            .FirstOrDefault();
-
-        if (existingItem != null)
+        try
         {
-            existingItem.Quantity += request.Quantity;
-            _quickOrderItemService.Update(existingItem);
-            return Ok(new QuickOrderItemEVM
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null) return NotFound("User not found");
+
+            var quickOrder = _quickOrderService.GetById(id);
+            if (quickOrder == null) return NotFound("Quick Order not found");
+
+            if (quickOrder.OwnerId != userId)
+                return Forbid();
+
+            // Validate contract item
+            var contractItem = _contractItemService
+                .Find(c => c.Id == request.ContractItemId && c.ClientId == user.ClientId)
+                .FirstOrDefault();
+
+            if (contractItem == null)
+                return BadRequest("Invalid or unauthorized contract item");
+
+            // Check if item already exists
+            var existingItem = _quickOrderItemService
+                .Find(i => i.QuickOrderId == id && i.ContractItemId == request.ContractItemId)
+                .FirstOrDefault();
+
+            if (existingItem != null)
             {
-                Id = existingItem.Id,
-                QuickOrderId = existingItem.QuickOrderId,
-                ContractItemId = existingItem.ContractItemId,
+                existingItem.Quantity += request.Quantity;
+                _quickOrderItemService.Update(existingItem);
+                return Ok(new QuickOrderItemEVM
+                {
+                    Id = existingItem.Id,
+                    QuickOrderId = existingItem.QuickOrderId,
+                    ContractItemId = existingItem.ContractItemId,
+                    ContractItem = _contractItemMapper.MapToEdit(contractItem),
+                    Quantity = existingItem.Quantity,
+                    IsAvailable = true
+                });
+            }
+
+            var item = new QuickOrderItem
+            {
+                QuickOrderId = id,
+                ContractItemId = request.ContractItemId,
+                Quantity = request.Quantity
+            };
+            _quickOrderItemService.Create(item);
+
+            return CreatedAtAction(nameof(GetQuickOrder), new { id }, new QuickOrderItemEVM
+            {
+                Id = item.Id,
+                QuickOrderId = item.QuickOrderId,
+                ContractItemId = item.ContractItemId,
                 ContractItem = _contractItemMapper.MapToEdit(contractItem),
-                Quantity = existingItem.Quantity,
+                Quantity = item.Quantity,
                 IsAvailable = true
             });
         }
-
-        var item = new QuickOrderItem
+        catch (Exception ex)
         {
-            QuickOrderId = id,
-            ContractItemId = request.ContractItemId,
-            Quantity = request.Quantity
-        };
-        _quickOrderItemService.Create(item);
-
-        return CreatedAtAction(nameof(GetQuickOrder), new { id }, new QuickOrderItemEVM
-        {
-            Id = item.Id,
-            QuickOrderId = item.QuickOrderId,
-            ContractItemId = item.ContractItemId,
-            ContractItem = _contractItemMapper.MapToEdit(contractItem),
-            Quantity = item.Quantity,
-            IsAvailable = true
-        });
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Add Item to Quick Order",
+                ex.Message,
+                ex,
+                additionalData: new { quickOrderId = id, contractItemId = request?.ContractItemId },
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to add item to quick order" });
+        }
     }
 
     [HttpPut("{id}/items/{itemId}")]
     public async Task<ActionResult<QuickOrderItemEVM>> UpdateItem(int id, int itemId, [FromBody] QuickOrderItemRequest request)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
-
-        var quickOrder = _quickOrderService.GetById(id);
-        if (quickOrder == null) return NotFound("Quick Order not found");
-
-        if (quickOrder.OwnerId != userId)
-            return Forbid();
-
-        var item = _quickOrderItemService.GetById(itemId);
-        if (item == null || item.QuickOrderId != id)
-            return NotFound("Item not found");
-
-        item.Quantity = request.Quantity;
-        _quickOrderItemService.Update(item);
-
-        var contractItem = _contractItemService.GetById(item.ContractItemId);
-
-        return Ok(new QuickOrderItemEVM
+        try
         {
-            Id = item.Id,
-            QuickOrderId = item.QuickOrderId,
-            ContractItemId = item.ContractItemId,
-            ContractItem = contractItem != null ? _contractItemMapper.MapToEdit(contractItem) : null,
-            Quantity = item.Quantity,
-            IsAvailable = contractItem != null
-        });
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
+
+            var quickOrder = _quickOrderService.GetById(id);
+            if (quickOrder == null) return NotFound("Quick Order not found");
+
+            if (quickOrder.OwnerId != userId)
+                return Forbid();
+
+            var item = _quickOrderItemService.GetById(itemId);
+            if (item == null || item.QuickOrderId != id)
+                return NotFound("Item not found");
+
+            item.Quantity = request.Quantity;
+            _quickOrderItemService.Update(item);
+
+            var contractItem = _contractItemService.GetById(item.ContractItemId);
+
+            return Ok(new QuickOrderItemEVM
+            {
+                Id = item.Id,
+                QuickOrderId = item.QuickOrderId,
+                ContractItemId = item.ContractItemId,
+                ContractItem = contractItem != null ? _contractItemMapper.MapToEdit(contractItem) : null,
+                Quantity = item.Quantity,
+                IsAvailable = contractItem != null
+            });
+        }
+        catch (Exception ex)
+        {
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Update Quick Order Item",
+                ex.Message,
+                ex,
+                additionalData: new { quickOrderId = id, itemId = itemId },
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to update quick order item" });
+        }
     }
 
     [HttpDelete("{id}/items/{itemId}")]
     public async Task<ActionResult> RemoveItem(int id, int itemId)
     {
-        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (userId == null) return Unauthorized();
+        try
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (userId == null) return Unauthorized();
 
-        var quickOrder = _quickOrderService.GetById(id);
-        if (quickOrder == null) return NotFound("Quick Order not found");
+            var quickOrder = _quickOrderService.GetById(id);
+            if (quickOrder == null) return NotFound("Quick Order not found");
 
-        if (quickOrder.OwnerId != userId)
-            return Forbid();
+            if (quickOrder.OwnerId != userId)
+                return Forbid();
 
-        var item = _quickOrderItemService.GetById(itemId);
-        if (item == null || item.QuickOrderId != id)
-            return NotFound("Item not found");
+            var item = _quickOrderItemService.GetById(itemId);
+            if (item == null || item.QuickOrderId != id)
+                return NotFound("Item not found");
 
-        _quickOrderItemService.Delete(item);
+            _quickOrderItemService.Delete(item);
 
-        return NoContent();
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            await _errorLogService.LogErrorAsync(
+                "Quick Order Error",
+                "Failed to Remove Quick Order Item",
+                ex.Message,
+                ex,
+                additionalData: new { quickOrderId = id, itemId = itemId },
+                userId: User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                userEmail: User.FindFirst(ClaimTypes.Email)?.Value,
+                requestUrl: HttpContext.Request.Path,
+                httpMethod: HttpContext.Request.Method);
+            return StatusCode(500, new { message = "Failed to remove quick order item" });
+        }
     }
 }
