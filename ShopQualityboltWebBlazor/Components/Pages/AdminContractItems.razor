@@ -364,6 +364,7 @@
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("Contract Items Error", "Failed to Load Clients", ex.Message);
             Snackbar.Add($"Error loading clients: {ex.Message}", Severity.Error);
         }
     }
@@ -390,6 +391,7 @@
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("Contract Items Error", "Failed to Load Reference Data", ex.Message);
             Snackbar.Add($"Error loading reference data: {ex.Message}", Severity.Error);
         }
     }
@@ -428,11 +430,13 @@
             }
             else
             {
+                await LogErrorAsync("Contract Items Error", "Failed to Load Contract Items", $"API returned {response.StatusCode}", new { clientId = selectedClientId.Value });
                 Snackbar.Add($"Error loading contract items: {response.StatusCode}", Severity.Error);
             }
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("Contract Items Error", "Failed to Load Contract Items", ex.Message, new { clientId = selectedClientId.Value });
             Snackbar.Add($"Error loading contract items: {ex.Message}", Severity.Error);
         }
         finally
@@ -521,6 +525,7 @@
             }
             catch (Exception ex)
             {
+                await LogErrorAsync("Contract Items Error", "Failed to Delete Contract Item", ex.Message, new { contractItemId = item.Id, customerStkNo = item.CustomerStkNo });
                 Snackbar.Add($"Error deleting contract item: {ex.Message}", Severity.Error);
             }
         }
@@ -546,11 +551,13 @@
             else
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
+                await LogErrorAsync("Contract Items Error", "Failed to Assign ProductID", $"API returned {response.StatusCode} - {errorContent}", new { contractItemId = item.Id, customerStkNo = item.CustomerStkNo, productIdId = item.ProductIDId });
                 Snackbar.Add($"Error assigning ProductID: {response.StatusCode} - {errorContent}", Severity.Error);
             }
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("Contract Items Error", "Failed to Assign ProductID", ex.Message, new { contractItemId = item.Id, customerStkNo = item.CustomerStkNo, productIdId = item.ProductIDId });
             Snackbar.Add($"Error assigning ProductID: {ex.Message}", Severity.Error);
         }
     }
@@ -871,5 +878,25 @@
     {
         selectedSpecId = value;
         StateHasChanged();
+    }
+
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("Auth");
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail
+        }
     }
 }

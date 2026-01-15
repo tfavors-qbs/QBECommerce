@@ -1,6 +1,8 @@
 @using QBExternalWebLibrary.Models
 @using QBExternalWebLibrary.Services.Http
+@using System.Net.Http.Json
 @inject IApiService<Client, ClientEditViewModel> ClientService
+@inject IHttpClientFactory HttpClientFactory
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -92,11 +94,32 @@
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("ClientDialog", "Error saving client", ex.Message, new { ClientId = model.Id, ClientName = model.Name, IsEdit });
             Snackbar.Add($"Error saving client: {ex.Message}", Severity.Error);
         }
         finally
         {
             saving = false;
+        }
+    }
+
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("Auth");
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail - logging errors shouldn't break the UI
         }
     }
 }

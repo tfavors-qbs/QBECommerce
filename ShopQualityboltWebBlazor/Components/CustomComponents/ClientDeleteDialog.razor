@@ -182,6 +182,7 @@
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("ClientDeleteDialog", "Error loading client statistics", ex.Message, new { ClientId = Client.Id });
             Snackbar.Add($"Error loading client statistics: {ex.Message}", Severity.Error);
             clientStats = new ClientStats(); // Initialize with zeros
         }
@@ -222,11 +223,13 @@
             else
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
+                await LogErrorAsync("ClientDeleteDialog", "Failed to delete client", errorContent, new { ClientId = Client.Id, ClientName = Client.Name });
                 Snackbar.Add($"Failed to delete client: {errorContent}", Severity.Error);
             }
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("ClientDeleteDialog", "Error deleting client", ex.Message, new { ClientId = Client.Id, ClientName = Client.Name });
             Snackbar.Add($"Error deleting client: {ex.Message}", Severity.Error);
         }
         finally
@@ -279,5 +282,24 @@
         public int? LengthId { get; set; }
         public string LengthName { get; set; }
         public bool NonStock { get; set; }
+    }
+
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await _httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail - logging errors shouldn't break the UI
+        }
     }
 }

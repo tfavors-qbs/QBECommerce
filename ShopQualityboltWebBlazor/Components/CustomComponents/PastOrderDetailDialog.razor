@@ -5,6 +5,7 @@
 @inject QuickOrderApiService QuickOrderApi
 @inject ShoppingCartManagementService ShoppingCartManagementService
 @inject ISnackbar Snackbar
+@inject IHttpClientFactory HttpClientFactory
 
 <MudDialog>
     <DialogContent>
@@ -147,6 +148,7 @@
         }
         else
         {
+            await LogErrorAsync("UI Error", "Failed to update tags", "UpdateTagsAsync returned false", new { orderId = OrderId, tags = _tags });
             Snackbar.Add("Failed to update tags", Severity.Error);
         }
     }
@@ -167,6 +169,7 @@
         }
         else
         {
+            await LogErrorAsync("UI Error", "Failed to reorder", "ReorderAsync returned null", new { orderId = OrderId });
             Snackbar.Add("Failed to reorder", Severity.Error);
         }
     }
@@ -202,9 +205,30 @@
         }
         else
         {
+            await LogErrorAsync("UI Error", "Failed to create Quick Order", "CreateAsync returned null", new { orderId = OrderId, quickOrderName = request.Name, itemCount = request.Items.Count });
             Snackbar.Add("Failed to create Quick Order", Severity.Error);
         }
     }
 
     private void Cancel() => MudDialog.Cancel();
+
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("Auth");
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail
+        }
+    }
 }

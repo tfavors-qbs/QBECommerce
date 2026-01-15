@@ -2,9 +2,11 @@
 @using QBExternalWebLibrary.Models.Catalog
 @using QBExternalWebLibrary.Models.Products
 @using QBExternalWebLibrary.Services.Http
+@using System.Net.Http.Json
 @inject QBSalesQuickOrderApiService QBSalesApi
 @inject IApiService<Diameter, Diameter> DiameterApi
 @inject IApiService<Length, Length> LengthApi
+@inject IHttpClientFactory HttpClientFactory
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -710,10 +712,31 @@
         }
         else
         {
+            await LogErrorAsync("CreateQuickOrderForUserDialog", "Failed to create Quick Order", "API returned null", new { UserId, Name = _name, ItemCount = _pendingItems.Count });
             Snackbar.Add("Failed to create Quick Order", Severity.Error);
         }
 
         _saving = false;
+    }
+
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("Auth");
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail - logging errors shouldn't break the UI
+        }
     }
 
     private class PendingItem

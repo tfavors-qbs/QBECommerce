@@ -161,11 +161,13 @@
             }
             else
             {
+                await LogErrorAsync("CartEditorDialog", "Failed to load cart", $"Status: {response.StatusCode}", new { UserId });
                 Snackbar.Add("Failed to load cart", Severity.Error);
             }
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("CartEditorDialog", "Error loading cart", ex.Message, new { UserId });
             Snackbar.Add($"Error loading cart: {ex.Message}", Severity.Error);
         }
         finally
@@ -193,11 +195,13 @@
             else
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
+                await LogErrorAsync("CartEditorDialog", "Failed to load items", errorContent, new { ClientId });
                 Snackbar.Add($"Failed to load items: {response.StatusCode}", Severity.Error);
             }
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("CartEditorDialog", "Error loading items", ex.Message, new { ClientId });
             Snackbar.Add($"Error loading items: {ex.Message}", Severity.Error);
         }
     }
@@ -233,13 +237,15 @@
             else
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
+                await LogErrorAsync("CartEditorDialog", "Failed to add item", errorContent, new { UserId, ContractItemId = _selectedItem?.Id });
                 Snackbar.Add($"Failed to add item: {errorContent}", Severity.Error);
-                Logger.LogError("Failed to add item {ContractItemId} to cart. Status: {StatusCode}, Error: {Error}", 
+                Logger.LogError("Failed to add item {ContractItemId} to cart. Status: {StatusCode}, Error: {Error}",
                     _selectedItem.Id, response.StatusCode, errorContent);
             }
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("CartEditorDialog", "Error adding item", ex.Message, new { UserId, ContractItemId = _selectedItem?.Id });
             Snackbar.Add($"Error adding item: {ex.Message}", Severity.Error);
             Logger.LogError(ex, "Exception adding item {ContractItemId} to cart", _selectedItem?.Id);
         }
@@ -263,11 +269,13 @@
             }
             else
             {
+                await LogErrorAsync("CartEditorDialog", "Failed to update quantity", $"Status: {response.StatusCode}", new { UserId, ItemId = item.Id });
                 Snackbar.Add("Failed to update quantity", Severity.Error);
             }
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("CartEditorDialog", "Error updating quantity", ex.Message, new { UserId, ItemId = item.Id });
             Snackbar.Add($"Error updating quantity: {ex.Message}", Severity.Error);
         }
     }
@@ -285,11 +293,13 @@
             }
             else
             {
+                await LogErrorAsync("CartEditorDialog", "Failed to remove item", $"Status: {response.StatusCode}", new { UserId, ItemId = item.Id });
                 Snackbar.Add("Failed to remove item", Severity.Error);
             }
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("CartEditorDialog", "Error removing item", ex.Message, new { UserId, ItemId = item.Id });
             Snackbar.Add($"Error removing item: {ex.Message}", Severity.Error);
         }
     }
@@ -307,11 +317,13 @@
             }
             else
             {
+                await LogErrorAsync("CartEditorDialog", "Failed to clear cart", $"Status: {response.StatusCode}", new { UserId });
                 Snackbar.Add("Failed to clear cart", Severity.Error);
             }
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("CartEditorDialog", "Error clearing cart", ex.Message, new { UserId });
             Snackbar.Add($"Error clearing cart: {ex.Message}", Severity.Error);
         }
     }
@@ -319,5 +331,24 @@
     private void Cancel()
     {
         MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await _httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail - logging errors shouldn't break the UI
+        }
     }
 }

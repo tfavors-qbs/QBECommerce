@@ -1,6 +1,8 @@
 @using QBExternalWebLibrary.Models
 @using QBExternalWebLibrary.Models.Products
 @using QBExternalWebLibrary.Services.Http
+@using System.Net.Http.Json
+@inject IHttpClientFactory HttpClientFactory
 @inject ISnackbar Snackbar
 
 <MudDialog>
@@ -136,7 +138,28 @@
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("ContractItemDialog", "Error saving contract item", ex.Message, new { ContractItemId = ContractItem.Id, CustomerStkNo = ContractItem.CustomerStkNo, IsEdit });
             Snackbar.Add($"Error saving contract item: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("Auth");
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail - logging errors shouldn't break the UI
         }
     }
 }

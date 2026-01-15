@@ -46,3 +46,59 @@ public async Task<ActionResult<Entity>> GetEntity(int id) {
     }
 }
 ```
+
+## UI Error Logging (Blazor Pages & Components)
+
+When creating or modifying Blazor pages and components, add error logging for failed operations by posting to `api/errorlogs`. This ensures UI-level failures are tracked alongside API errors.
+
+### When to Log
+- API calls that return null or fail
+- Operations that catch exceptions
+- Any significant user-facing failure
+
+### Implementation Pattern
+
+1. Inject `IHttpClientFactory` and create an "Auth" client
+2. When an operation fails, post error details to `api/errorlogs`
+3. Show user-friendly Snackbar message (don't expose technical details)
+4. Wrap logging in try-catch to prevent logging failures from breaking UI
+
+Example pattern:
+```razor
+@inject IHttpClientFactory HttpClientFactory
+@inject ISnackbar Snackbar
+
+@code {
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("Auth");
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail - logging errors shouldn't break the UI
+        }
+    }
+
+    private async Task SomeOperation()
+    {
+        var result = await SomeApiService.DoSomethingAsync();
+        if (result == null)
+        {
+            await LogErrorAsync("UI Error", "Operation Failed", "DoSomething returned null", new { context = "relevant data" });
+            Snackbar.Add("Operation failed", Severity.Error);
+            return;
+        }
+        // Success path...
+    }
+}
+```

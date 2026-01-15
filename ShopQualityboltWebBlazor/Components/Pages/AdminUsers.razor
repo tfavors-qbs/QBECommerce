@@ -4,6 +4,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 @using ShopQualityboltWebBlazor.Components.CustomComponents
+@using System.Net.Http.Json
 @attribute [Authorize(Roles = "Admin")]
 @inject IUserApiService UserApiService
 @inject IApiService<Client, ClientEditViewModel> ClientService
@@ -11,6 +12,7 @@
 @inject ISnackbar Snackbar
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IHttpClientFactory HttpClientFactory
 
 <PageTitle>User Management</PageTitle>
 
@@ -106,6 +108,7 @@
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("UI Error", "Failed to Load Users", ex.Message, new { exception = ex.ToString() });
             Snackbar.Add($"Error loading users: {ex.Message}", Severity.Error);
         }
         finally
@@ -159,8 +162,29 @@
             }
             catch (Exception ex)
             {
+                await LogErrorAsync("UI Error", "Failed to Delete User", ex.Message, new { userId = user.Id, userEmail = user.Email, exception = ex.ToString() });
                 Snackbar.Add($"Error deleting user: {ex.Message}", Severity.Error);
             }
+        }
+    }
+
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("Auth");
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail
         }
     }
 }

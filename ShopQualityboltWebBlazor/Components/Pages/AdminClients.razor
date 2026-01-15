@@ -117,6 +117,7 @@
         }
         catch (Exception ex)
         {
+            await LogErrorAsync("UI Error", "Failed to Load Clients", ex.Message, new { exception = ex.ToString() });
             Snackbar.Add($"Error loading clients: {ex.Message}", Severity.Error);
         }
         finally
@@ -187,5 +188,25 @@
     private void NavigateToContractItems(int clientId)
     {
         NavigationManager.NavigateTo($"/admin/contract-items?clientId={clientId}");
+    }
+
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("Auth");
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail
+        }
     }
 }

@@ -8,6 +8,7 @@
 @inject QuickOrderApiService QuickOrderApi
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 @inject ShoppingCartManagementService ShoppingCartManagementService
 @attribute [Authorize]
@@ -174,6 +175,26 @@
 </MudGrid>
 
 @code {
+    private async Task LogErrorAsync(string errorType, string title, string message, object? additionalData = null)
+    {
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient("Auth");
+            var errorLog = new
+            {
+                ErrorType = errorType,
+                ErrorTitle = title,
+                ErrorMessage = message,
+                AdditionalData = additionalData
+            };
+            await httpClient.PostAsJsonAsync("api/errorlogs", errorLog);
+        }
+        catch
+        {
+            // Silently fail - logging errors shouldn't break the UI
+        }
+    }
+
     private bool _loading = true;
     private QuickOrderPageEVM? _pageData;
     private string _searchText = "";
@@ -291,6 +312,7 @@
         }
         else
         {
+            await LogErrorAsync("Quick Order Error", "Failed to Add to Cart", "AddToCartAsync returned null", new { quickOrderId = order.Id });
             Snackbar.Add("Failed to add items to cart", Severity.Error);
         }
     }
@@ -308,6 +330,7 @@
         }
         else
         {
+            await LogErrorAsync("Quick Order Error", "Failed to Copy Quick Order", "CopyAsync returned null", new { quickOrderId = order.Id, quickOrderName = order.Name });
             Snackbar.Add("Failed to copy quick order", Severity.Error);
         }
     }
@@ -333,6 +356,7 @@
             }
             else
             {
+                await LogErrorAsync("Quick Order Error", "Failed to Delete Quick Order", "DeleteAsync returned false", new { quickOrderId = order.Id, quickOrderName = order.Name });
                 Snackbar.Add("Failed to delete quick order", Severity.Error);
             }
         }
