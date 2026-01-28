@@ -7,7 +7,8 @@
       "Bash(find:*)",
       "Bash(dir:*)",
       "Bash(findstr:*)",
-      "Bash(Select-String \"SaveAsQuickOrderDialog\")"
+      "Bash(Select-String \"SaveAsQuickOrderDialog\")",
+      "Bash(netstat:*)"
     ]
   }
 }
