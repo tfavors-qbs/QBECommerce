@@ -214,15 +214,92 @@ sudo systemctl restart postgresql
 - ASP.NET Core Identity (works with PostgreSQL)
 - Error logging infrastructure
 
-## Implementation Steps
+## Implementation Progress
 
-1. Set up local PostgreSQL with `docker-compose up -d db`
-2. Swap NuGet packages
-3. Update Program.cs to use `UseNpgsql()`
-4. Update connection strings
-5. Delete migrations folder
-6. Create fresh InitialCreate migration
-7. Run and test locally
-8. Create Dockerfile and build image
-9. Set up Linux server (PostgreSQL, Docker)
-10. Deploy and configure Nginx Proxy Manager
+### COMPLETED (2026-01-28)
+
+- [x] Swap NuGet packages (SqlServer → Npgsql) in both .csproj files
+- [x] Update Program.cs to use `UseNpgsql()`
+- [x] Update connection strings in appsettings.Development.json and appsettings.Production.json
+- [x] Delete old SQL Server migrations
+- [x] Create fresh PostgreSQL migration (`InitialCreate`)
+- [x] Create Dockerfile (in solution root)
+- [x] Create docker-compose.yml (for local dev)
+- [x] Create docker-compose.prod.yml (for production)
+- [x] Create .dockerignore
+- [x] Fix unrelated build issues (unused Azure/Identity imports)
+- [x] Build succeeds with PostgreSQL provider
+
+### REMAINING STEPS
+
+1. **Install Docker Desktop on Windows dev machine** ← YOU ARE HERE
+   - Download complete, restart required
+   - After restart, Docker Desktop will start automatically
+
+2. **Start local PostgreSQL and test**
+   ```bash
+   cd C:\Projects\QBECommerce_git\QBECommerce
+   docker-compose up -d db
+   ```
+   Then run the app with `dotnet run` to verify it connects and creates tables.
+
+3. **Install Docker on Linux production server**
+   ```bash
+   sudo apt update
+   sudo apt install docker.io docker-compose-plugin
+   sudo systemctl start docker
+   sudo systemctl enable docker
+   sudo usermod -aG docker $USER
+   ```
+
+4. **Install PostgreSQL on Linux production server**
+   ```bash
+   sudo apt install postgresql postgresql-contrib
+   sudo systemctl start postgresql
+   sudo systemctl enable postgresql
+   ```
+
+5. **Create production database and user**
+   ```bash
+   sudo -u postgres psql
+   CREATE USER qbcommerce WITH PASSWORD 'your-secure-password';
+   CREATE DATABASE QBCommerceDB OWNER qbcommerce;
+   GRANT ALL PRIVILEGES ON DATABASE QBCommerceDB TO qbcommerce;
+   \q
+   ```
+
+6. **Configure PostgreSQL for Docker access**
+   Edit `/etc/postgresql/16/main/pg_hba.conf`:
+   ```
+   host    QBCommerceDB    qbcommerce    172.17.0.0/16    scram-sha-256
+   ```
+   Then: `sudo systemctl restart postgresql`
+
+7. **Deploy to production**
+   - Copy docker-compose.prod.yml to server
+   - Update password in compose file or use environment variable
+   - Run `docker-compose -f docker-compose.prod.yml up -d`
+
+8. **Configure Nginx Proxy Manager**
+   - Access http://your-server-ip:81
+   - Upload custom SSL certificate
+   - Create proxy host pointing to app:8080
+
+### Files Changed
+
+| File | Status |
+|------|--------|
+| `QBExternalWebLibrary/QBExternalWebLibrary.csproj` | Modified |
+| `ShopQualityboltWeb/ShopQualityboltWeb.csproj` | Modified |
+| `ShopQualityboltWeb/ShopQualityboltWeb/Program.cs` | Modified |
+| `ShopQualityboltWeb/ShopQualityboltWeb/appsettings.Development.json` | Modified |
+| `ShopQualityboltWeb/ShopQualityboltWeb/appsettings.Production.json` | Modified |
+| `QBExternalWebLibrary/Migrations/` | Recreated for PostgreSQL |
+| `Dockerfile` | Created |
+| `docker-compose.yml` | Created |
+| `docker-compose.prod.yml` | Created |
+| `.dockerignore` | Created |
+| `Controllers/Api/AccountsController.cs` | Fixed unused import |
+| `Controllers/Api/PunchOutSessionsController.cs` | Fixed unused import |
+| `Services/Http/IdentityApiService.cs` | Fixed unused import |
+| `Services/LocalStorageService.cs` | Fixed unused import |

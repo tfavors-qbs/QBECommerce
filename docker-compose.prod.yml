@@ -1,0 +1,38 @@
+# Production docker-compose
+# PostgreSQL runs natively on the host - not in this compose file
+# Deploy with: docker-compose -f docker-compose.prod.yml up -d
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qbcommerce-app
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      # Connection string can also be set via environment variable:
+      # - ConnectionStrings__DefaultConnectionString=Host=host.docker.internal;Database=QBCommerceDB;Username=qbcommerce;Password=YOUR_SECURE_PASSWORD
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - qbcommerce-network
+
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"   # Admin UI
+    volumes:
+      - ./npm-data:/data
+      - ./npm-letsencrypt:/etc/letsencrypt
+    restart: unless-stopped
+    networks:
+      - qbcommerce-network
+
+networks:
+  qbcommerce-network:
+    driver: bridge

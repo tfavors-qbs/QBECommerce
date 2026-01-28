@@ -1,0 +1,24 @@
+# Development docker-compose - PostgreSQL only
+# Run with: docker-compose up -d
+# Then run your app with: dotnet run
+
+services:
+  db:
+    image: postgres:16
+    container_name: qbcommerce-postgres-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: QBCommerceDB
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
