@@ -1,10 +1,10 @@
 # Production docker-compose
-# PostgreSQL runs natively on the host - not in this compose file
+# Replace YOUR_USERNAME with your GitHub username
 # Deploy with: docker-compose -f docker-compose.prod.yml up -d
 
 services:
   api:
-    image: ghcr.io/tfavors/qbcommerce-api:latest
+    image: ghcr.io/YOUR_USERNAME/qbcommerce-api:latest
     container_name: qbcommerce-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -19,7 +19,7 @@ services:
       - qbcommerce-network
 
   blazor:
-    image: ghcr.io/tfavors/qbcommerce-blazor:latest
+    image: ghcr.io/YOUR_USERNAME/qbcommerce-blazor:latest
     container_name: qbcommerce-blazor
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
@@ -37,7 +37,7 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "81:81"   # Admin UI
+      - "81:81"
     volumes:
       - ./npm-data:/data
       - ./npm-letsencrypt:/etc/letsencrypt

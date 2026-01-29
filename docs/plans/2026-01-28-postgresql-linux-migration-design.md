@@ -2,7 +2,7 @@
 
 ## Overview
 
-Migrate QBECommerce from SQL Server on Windows to PostgreSQL on Linux, with the application running in Docker and Nginx Proxy Manager handling reverse proxy and SSL.
+Migrate QBECommerce from SQL Server on Windows to PostgreSQL on Linux, with the application running in Docker containers and Nginx Proxy Manager handling reverse proxy and SSL.
 
 ## Architecture
 
@@ -12,134 +12,296 @@ Migrate QBECommerce from SQL Server on Windows to PostgreSQL on Linux, with the 
 │                                                              │
 │  ┌───────────────────────────────────────┐    ┌───────────┐ │
 │  │            Docker                      │    │ PostgreSQL│ │
-│  │  ┌───────────────┐   ┌─────────────┐  │    │  (native) │ │
-│  │  │ Nginx Proxy   │──▶│   App       │  │───▶│   :5432   │ │
-│  │  │ Manager       │   │   :8080     │  │    └───────────┘ │
-│  │  │ (custom SSL)  │   └─────────────┘  │                  │
-│  │  └───────────────┘                    │                  │
+│  │  ┌───────────────┐                    │    │  (native) │ │
+│  │  │ Nginx Proxy   │   ┌─────────────┐  │    │   :5432   │ │
+│  │  │ Manager       │──▶│   Blazor    │  │    └───────────┘ │
+│  │  │ :80/:443/:81  │   │   :8080     │  │          ▲       │
+│  │  └───────────────┘   └─────────────┘  │          │       │
+│  │                            │          │          │       │
+│  │                      ┌─────▼───────┐  │          │       │
+│  │                      │    API      │──┼──────────┘       │
+│  │                      │   :8080     │  │                  │
+│  │                      └─────────────┘  │                  │
 │  └───────────────────────────────────────┘                  │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 **Components:**
 - **PostgreSQL** - Runs natively on Linux host (port 5432)
-- **App container** - .NET 9 Blazor app (port 8080)
-- **Nginx Proxy Manager** - Reverse proxy with custom SSL certificate (ports 80, 443, 81 for admin)
+- **API container** - .NET 9 backend API (internal port 8080)
+- **Blazor container** - .NET 9 Blazor Server frontend (internal port 8080)
+- **Nginx Proxy Manager** - Reverse proxy with SSL (ports 80, 443, 81 for admin)
 
-**Development environment:**
-- PostgreSQL runs in Docker on Windows
-- App runs with `dotnet run` or optionally in Docker
+**Deployment method:** Artifact-based using GitHub Container Registry (ghcr.io)
 
-## Code Changes
+---
 
-### 1. NuGet Package Swap
+## Production Deployment Guide
 
-**Remove from QBExternalWebLibrary.csproj:**
-```xml
-<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.7" />
+### Prerequisites on Dev Machine (Windows)
+
+1. Docker Desktop with WSL 2
+2. GitHub account with Personal Access Token (PAT) with `write:packages` and `read:packages` scopes
+
+### Step 1: Build and Push Images to GitHub Container Registry
+
+**One-time login to ghcr.io:**
+```powershell
+echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 ```
 
-**Add:**
-```xml
-<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+**Build and push images:**
+```powershell
+cd C:\Projects\QBECommerce_git\QBECommerce
+
+# Build images
+docker build -f Dockerfile.api -t ghcr.io/YOUR_USERNAME/qbcommerce-api:latest .
+docker build -f Dockerfile.blazor -t ghcr.io/YOUR_USERNAME/qbcommerce-blazor:latest .
+
+# Push to registry
+docker push ghcr.io/YOUR_USERNAME/qbcommerce-api:latest
+docker push ghcr.io/YOUR_USERNAME/qbcommerce-blazor:latest
 ```
 
-### 2. DbContext Configuration (Program.cs)
+### Step 2: Prepare Production Server
 
-**Change:**
-```csharp
-options.UseSqlServer(connectionString)
+**Install Docker:**
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-compose
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+# Log out and back in for group change to take effect
 ```
 
-**To:**
-```csharp
-options.UseNpgsql(connectionString)
+**Install PostgreSQL:**
+```bash
+sudo apt install -y postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo systemctl enable postgresql
 ```
 
-### 3. Connection Strings
-
-**appsettings.Development.json:**
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Database=QBCommerceDB;Username=postgres;Password=devpassword"
-  }
-}
+**Find your PostgreSQL version (important for config paths):**
+```bash
+ls /etc/postgresql/
+# Note the version number (e.g., 16, 17)
 ```
 
-**appsettings.Production.json:**
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=host.docker.internal;Database=QBCommerceDB;Username=qbcommerce;Password=SECURE_PASSWORD_HERE"
-  }
-}
+### Step 3: Configure PostgreSQL
+
+**Create database and user:**
+```bash
+sudo -u postgres psql
 ```
 
-### 4. Migrations
+```sql
+-- IMPORTANT: Use lowercase database name or quote it
+-- Unquoted names become lowercase in PostgreSQL
+CREATE USER qbcommerce WITH PASSWORD 'your-secure-password';
+CREATE DATABASE qbcommercedb OWNER qbcommerce;
+GRANT ALL PRIVILEGES ON DATABASE qbcommercedb TO qbcommerce;
+\q
+```
 
-Delete existing migrations folder and create fresh initial migration:
+**Configure PostgreSQL to listen on all interfaces:**
+
+Edit `/etc/postgresql/XX/main/postgresql.conf` (replace XX with your version):
+```bash
+sudo nano /etc/postgresql/17/main/postgresql.conf
+```
+
+Find and change:
+```
+listen_addresses = '*'
+```
+
+**Configure pg_hba.conf for Docker access:**
+
+Edit `/etc/postgresql/XX/main/pg_hba.conf`:
+```bash
+sudo nano /etc/postgresql/17/main/pg_hba.conf
+```
+
+Add this line at the end (covers all Docker networks):
+```
+host    qbcommercedb    qbcommerce    172.16.0.0/12    scram-sha-256
+```
+
+**Restart PostgreSQL:**
+```bash
+sudo systemctl restart postgresql
+```
+
+**Verify PostgreSQL is listening:**
+```bash
+sudo ss -tlnp | grep 5432
+# Should show 0.0.0.0:5432
+```
+
+### Step 4: Deploy Application
+
+**Create application directory:**
+```bash
+mkdir -p ~/qbcommerce
+cd ~/qbcommerce
+```
+
+**Create docker-compose.prod.yml:**
+```yaml
+services:
+  api:
+    image: ghcr.io/YOUR_USERNAME/qbcommerce-api:latest
+    container_name: qbcommerce-api
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnectionString=Host=host.docker.internal;Database=qbcommercedb;Username=qbcommerce;Password=${DB_PASSWORD}
+      - AdminUser__Email=${ADMIN_EMAIL}
+      - AdminUser__Password=${ADMIN_PASSWORD}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - qbcommerce-network
+
+  blazor:
+    image: ghcr.io/YOUR_USERNAME/qbcommerce-blazor:latest
+    container_name: qbcommerce-blazor
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ApiSettings__BaseAddress=http://api:8080
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - qbcommerce-network
+
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"
+    volumes:
+      - ./npm-data:/data
+      - ./npm-letsencrypt:/etc/letsencrypt
+    restart: unless-stopped
+    networks:
+      - qbcommerce-network
+
+networks:
+  qbcommerce-network:
+    driver: bridge
+```
+
+**Create .env file:**
+```bash
+cat > .env << 'EOF'
+DB_PASSWORD=your-postgres-password
+ADMIN_EMAIL=admin@yourcompany.com
+ADMIN_PASSWORD=YourSecureAdminPassword123!
+EOF
+```
+
+**Login to ghcr.io on production server:**
+```bash
+echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+```
+
+**Start the application:**
+```bash
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+**Check logs:**
+```bash
+docker logs qbcommerce-api 2>&1 | tail -30
+```
+
+### Step 5: Configure Nginx Proxy Manager
+
+1. Access admin UI at `http://your-server-ip:81`
+2. Default login: `admin@example.com` / `changeme`
+3. Change default password
+4. Add Proxy Host for **Blazor frontend**:
+   - Domain: `yourdomain.com`
+   - Scheme: `http`
+   - Forward Hostname: `qbcommerce-blazor`
+   - Forward Port: `8080`
+   - **Enable Websockets** (required for Blazor Server)
+   - SSL tab: Upload custom certificate or request Let's Encrypt
+
+---
+
+## Troubleshooting
+
+### "no pg_hba.conf entry for host" Error
+
+Docker networks can use various subnets (172.17.x.x, 172.18.x.x, etc.). Use the broad range `172.16.0.0/12` which covers all possible Docker networks.
 
 ```bash
-rm -rf QBExternalWebLibrary/QBExternalWebLibrary/Migrations/
-dotnet ef migrations add InitialCreate --project QBExternalWebLibrary/QBExternalWebLibrary
+# Check which IP the container is using
+docker logs qbcommerce-api 2>&1 | grep "host"
+
+# Update pg_hba.conf with broad range
+sudo nano /etc/postgresql/17/main/pg_hba.conf
+# Add: host    qbcommercedb    qbcommerce    172.16.0.0/12    scram-sha-256
+
+sudo systemctl restart postgresql
+docker restart qbcommerce-api
 ```
 
-### 5. Dockerfiles
+### "Connection refused" Error
 
-**API Dockerfile** (`Dockerfile.api` in solution root):
+PostgreSQL isn't listening on the Docker interface.
 
-```dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
-WORKDIR /app
-EXPOSE 8080
+```bash
+# Check if PostgreSQL is listening
+sudo ss -tlnp | grep 5432
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-WORKDIR /src
-COPY ["ShopQualityboltWeb/ShopQualityboltWeb/ShopQualityboltWeb.csproj", "ShopQualityboltWeb/ShopQualityboltWeb/"]
-COPY ["QBExternalWebLibrary/QBExternalWebLibrary/QBExternalWebLibrary.csproj", "QBExternalWebLibrary/QBExternalWebLibrary/"]
-RUN dotnet restore "ShopQualityboltWeb/ShopQualityboltWeb/ShopQualityboltWeb.csproj"
-COPY . .
-WORKDIR "/src/ShopQualityboltWeb/ShopQualityboltWeb"
-RUN dotnet build -c Release -o /app/build
+# If only showing 127.0.0.1, fix postgresql.conf
+sudo nano /etc/postgresql/17/main/postgresql.conf
+# Set: listen_addresses = '*'
 
-FROM build AS publish
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
-
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "ShopQualityboltWeb.dll"]
+sudo systemctl restart postgresql
 ```
 
-**Blazor Frontend Dockerfile** (`Dockerfile.blazor` in solution root):
+### "database does not exist" Error
 
-```dockerfile
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
-WORKDIR /app
-EXPOSE 8080
+PostgreSQL lowercases database names unless quoted. Use lowercase `qbcommercedb` everywhere.
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
-WORKDIR /src
-COPY ["ShopQualityboltWebBlazor/ShopQualityboltWebBlazor.csproj", "ShopQualityboltWebBlazor/"]
-COPY ["QBExternalWebLibrary/QBExternalWebLibrary/QBExternalWebLibrary.csproj", "QBExternalWebLibrary/QBExternalWebLibrary/"]
-RUN dotnet restore "ShopQualityboltWebBlazor/ShopQualityboltWebBlazor.csproj"
-COPY . .
-WORKDIR "/src/ShopQualityboltWebBlazor"
-RUN dotnet build -c Release -o /app/build
+### "password authentication failed" Error
 
-FROM build AS publish
-RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+Verify the password in .env matches what was set in PostgreSQL:
+```bash
+# Test connection directly
+psql -h localhost -U qbcommerce -d qbcommercedb -c "SELECT 1;"
 
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "ShopQualityboltWebBlazor.dll"]
+# Reset password if needed
+sudo -u postgres psql
+ALTER USER qbcommerce WITH PASSWORD 'new-password';
+\q
 ```
 
-### 6. docker-compose.yml (Development)
+### Port 80 Already in Use
 
-Full stack development with PostgreSQL, API, and Blazor frontend:
+Something else is using port 80 (Apache, nginx, etc.):
+```bash
+sudo ss -tlnp | grep :80
+
+# Stop conflicting service
+sudo systemctl stop apache2
+sudo systemctl disable apache2
+```
+
+---
+
+## Development Environment
+
+### docker-compose.yml (Local Development)
 
 ```yaml
 # Run with: docker-compose up -d
@@ -206,218 +368,63 @@ networks:
     driver: bridge
 ```
 
-### 7. docker-compose.prod.yml (Production)
+---
 
-PostgreSQL runs natively on the host:
+## Files Required for Production Deployment
 
-```yaml
-# Deploy with: docker-compose -f docker-compose.prod.yml up -d
+Only these files are needed on the production server:
+- `docker-compose.prod.yml`
+- `.env` (with secrets - never commit to git)
 
-services:
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-    container_name: qbcommerce-api
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:8080
-      # Connection string can also be set via environment variable:
-      # - ConnectionStrings__DefaultConnectionString=Host=host.docker.internal;Database=QBCommerceDB;Username=qbcommerce;Password=YOUR_SECURE_PASSWORD
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    restart: unless-stopped
-    networks:
-      - qbcommerce-network
+The application images are pulled from GitHub Container Registry.
 
-  blazor:
-    build:
-      context: .
-      dockerfile: Dockerfile.blazor
-    container_name: qbcommerce-blazor
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:8080
-      - ApiSettings__BaseAddress=http://api:8080
-    depends_on:
-      - api
-    restart: unless-stopped
-    networks:
-      - qbcommerce-network
+---
 
-  nginx-proxy-manager:
-    image: jc21/nginx-proxy-manager:latest
-    container_name: nginx-proxy-manager
-    ports:
-      - "80:80"
-      - "443:443"
-      - "81:81"   # Admin UI
-    volumes:
-      - ./npm-data:/data
-      - ./npm-letsencrypt:/etc/letsencrypt
-    restart: unless-stopped
-    networks:
-      - qbcommerce-network
+## Updating Production
 
-networks:
-  qbcommerce-network:
-    driver: bridge
+To deploy updates:
+
+**On dev machine:**
+```powershell
+# Build and push new images
+docker build -f Dockerfile.api -t ghcr.io/YOUR_USERNAME/qbcommerce-api:latest .
+docker build -f Dockerfile.blazor -t ghcr.io/YOUR_USERNAME/qbcommerce-blazor:latest .
+docker push ghcr.io/YOUR_USERNAME/qbcommerce-api:latest
+docker push ghcr.io/YOUR_USERNAME/qbcommerce-blazor:latest
 ```
 
-## Production Server Setup
-
-### Install PostgreSQL
-
+**On production server:**
 ```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
+cd ~/qbcommerce
+docker-compose -f docker-compose.prod.yml pull
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
-### Create Database and User
+---
 
-```bash
-sudo -u postgres psql
+## Implementation Status
 
-CREATE USER qbcommerce WITH PASSWORD 'yoursecurepassword';
-CREATE DATABASE QBCommerceDB OWNER qbcommerce;
-GRANT ALL PRIVILEGES ON DATABASE QBCommerceDB TO qbcommerce;
-\q
-```
-
-### Configure PostgreSQL for Docker Access
-
-Edit `/etc/postgresql/16/main/pg_hba.conf`:
-```
-host    QBCommerceDB    qbcommerce    172.17.0.0/16    scram-sha-256
-```
-
-Restart PostgreSQL:
-```bash
-sudo systemctl restart postgresql
-```
-
-### Nginx Proxy Manager Setup
-
-1. Access admin UI at `http://your-server-ip:81`
-2. Default login: `admin@example.com` / `changeme`
-3. Change default password
-4. Add Proxy Host for the **Blazor frontend** (main site):
-   - Domain: `yourdomain.com`
-   - Forward hostname: `blazor`
-   - Forward port: `8080`
-   - Enable Websockets (required for Blazor Server)
-   - SSL tab: Upload custom certificate (.crt and .key files)
-5. Add Proxy Host for the **API** (if needed externally):
-   - Domain: `api.yourdomain.com` or `yourdomain.com/api`
-   - Forward hostname: `api`
-   - Forward port: `8080`
-   - SSL tab: Use same certificate
-
-## What Stays the Same
-
-- All models/entities
-- All services and repositories
-- All Blazor pages and components
-- ASP.NET Core Identity (works with PostgreSQL)
-- Error logging infrastructure
-
-## Implementation Progress
-
-### COMPLETED (2026-01-28)
-
-- [x] Swap NuGet packages (SqlServer → Npgsql) in both .csproj files
-- [x] Update Program.cs to use `UseNpgsql()`
-- [x] Update connection strings in appsettings.Development.json and appsettings.Production.json
-- [x] Delete old SQL Server migrations
-- [x] Create fresh PostgreSQL migration (`InitialCreate`)
-- [x] Create Dockerfile.api (API backend)
-- [x] Create Dockerfile.blazor (Blazor frontend)
-- [x] Create docker-compose.yml (full stack dev: PostgreSQL + API + Blazor)
-- [x] Create docker-compose.prod.yml (production: API + Blazor + Nginx Proxy Manager)
-- [x] Create .dockerignore
-- [x] Fix unrelated build issues (unused Azure/Identity imports)
-- [x] Build succeeds with PostgreSQL provider
-
-### REMAINING STEPS
-
-1. **Install Docker Desktop on Windows dev machine** ✓ DONE
-   - WSL 2 enabled, Docker Desktop running
-
-2. **Build and start full dev stack** ✓ DONE
-   - All containers running (PostgreSQL, API, Blazor)
-   - Admin user seeded
-
-3. **Install Docker on Linux production server** ← YOU ARE HERE
-   ```bash
-   cd C:\Projects\QBECommerce_git\QBECommerce
-   docker-compose up -d --build
-   ```
-   Access:
-   - Blazor UI: http://localhost:5000
-   - API/Swagger: http://localhost:5278/swagger
-
-3. **Install Docker on Linux production server**
-   ```bash
-   sudo apt update
-   sudo apt install docker.io docker-compose-plugin
-   sudo systemctl start docker
-   sudo systemctl enable docker
-   sudo usermod -aG docker $USER
-   ```
-
-4. **Install PostgreSQL on Linux production server**
-   ```bash
-   sudo apt install postgresql postgresql-contrib
-   sudo systemctl start postgresql
-   sudo systemctl enable postgresql
-   ```
-
-5. **Create production database and user**
-   ```bash
-   sudo -u postgres psql
-   CREATE USER qbcommerce WITH PASSWORD 'your-secure-password';
-   CREATE DATABASE QBCommerceDB OWNER qbcommerce;
-   GRANT ALL PRIVILEGES ON DATABASE QBCommerceDB TO qbcommerce;
-   \q
-   ```
-
-6. **Configure PostgreSQL for Docker access**
-   Edit `/etc/postgresql/16/main/pg_hba.conf`:
-   ```
-   host    QBCommerceDB    qbcommerce    172.17.0.0/16    scram-sha-256
-   ```
-   Then: `sudo systemctl restart postgresql`
-
-7. **Deploy to production**
-   - Copy docker-compose.prod.yml to server
-   - Update password in compose file or use environment variable
-   - Run `docker-compose -f docker-compose.prod.yml up -d`
-
-8. **Configure Nginx Proxy Manager**
-   - Access http://your-server-ip:81
-   - Upload custom SSL certificate
-   - Create proxy host for `blazor:8080` (main site, enable websockets)
-   - Optionally create proxy host for `api:8080` (if API needs external access)
+### Completed
+- [x] PostgreSQL migration (NuGet packages, DbContext, connection strings)
+- [x] Dockerfiles for API and Blazor
+- [x] docker-compose for development
+- [x] docker-compose for production with ghcr.io images
+- [x] Admin user seeding on startup
+- [x] GitHub Container Registry deployment workflow
+- [x] Test deployment to staging server
+- [x] Documentation with troubleshooting guide
 
 ### Files Changed
-
 | File | Status |
 |------|--------|
-| `QBExternalWebLibrary/QBExternalWebLibrary.csproj` | Modified |
-| `ShopQualityboltWeb/ShopQualityboltWeb.csproj` | Modified |
-| `ShopQualityboltWeb/ShopQualityboltWeb/Program.cs` | Modified |
-| `ShopQualityboltWeb/ShopQualityboltWeb/appsettings.Development.json` | Modified |
-| `ShopQualityboltWeb/ShopQualityboltWeb/appsettings.Production.json` | Modified |
-| `QBExternalWebLibrary/Migrations/` | Recreated for PostgreSQL |
-| `Dockerfile.api` | Created (API backend) |
-| `Dockerfile.blazor` | Created (Blazor frontend) |
-| `docker-compose.yml` | Created (full dev stack) |
+| `QBExternalWebLibrary/QBExternalWebLibrary.csproj` | Modified (Npgsql) |
+| `ShopQualityboltWeb/ShopQualityboltWeb.csproj` | Modified (Npgsql) |
+| `ShopQualityboltWeb/ShopQualityboltWeb/Program.cs` | Modified (UseNpgsql, admin seeding) |
+| `ShopQualityboltWeb/ShopQualityboltWeb/appsettings.*.json` | Modified (connection strings) |
+| `Dockerfile.api` | Created |
+| `Dockerfile.blazor` | Created |
+| `docker-compose.yml` | Created (development) |
 | `docker-compose.prod.yml` | Created (production) |
 | `.dockerignore` | Created |
-| `Controllers/Api/AccountsController.cs` | Fixed unused import |
-| `Controllers/Api/PunchOutSessionsController.cs` | Fixed unused import |
-| `Services/Http/IdentityApiService.cs` | Fixed unused import |
-| `Services/LocalStorageService.cs` | Fixed unused import |
+| `.env.example` | Created |
+| `deploy/` | Created (deployment files) |
