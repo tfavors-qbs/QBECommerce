@@ -85,9 +85,9 @@ rm -rf QBExternalWebLibrary/QBExternalWebLibrary/Migrations/
 dotnet ef migrations add InitialCreate --project QBExternalWebLibrary/QBExternalWebLibrary
 ```
 
-### 5. Dockerfile
+### 5. Dockerfiles
 
-Create `ShopQualityboltWeb/ShopQualityboltWeb/Dockerfile`:
+**API Dockerfile** (`Dockerfile.api` in solution root):
 
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
@@ -96,9 +96,9 @@ EXPOSE 8080
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
-COPY ["ShopQualityboltWeb/ShopQualityboltWeb/ShopQualityboltWeb.csproj", "ShopQualityboltWeb/"]
-COPY ["QBExternalWebLibrary/QBExternalWebLibrary/QBExternalWebLibrary.csproj", "QBExternalWebLibrary/"]
-RUN dotnet restore "ShopQualityboltWeb/ShopQualityboltWeb.csproj"
+COPY ["ShopQualityboltWeb/ShopQualityboltWeb/ShopQualityboltWeb.csproj", "ShopQualityboltWeb/ShopQualityboltWeb/"]
+COPY ["QBExternalWebLibrary/QBExternalWebLibrary/QBExternalWebLibrary.csproj", "QBExternalWebLibrary/QBExternalWebLibrary/"]
+RUN dotnet restore "ShopQualityboltWeb/ShopQualityboltWeb/ShopQualityboltWeb.csproj"
 COPY . .
 WORKDIR "/src/ShopQualityboltWeb/ShopQualityboltWeb"
 RUN dotnet build -c Release -o /app/build
@@ -112,14 +112,43 @@ COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "ShopQualityboltWeb.dll"]
 ```
 
+**Blazor Frontend Dockerfile** (`Dockerfile.blazor` in solution root):
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+WORKDIR /app
+EXPOSE 8080
+
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+WORKDIR /src
+COPY ["ShopQualityboltWebBlazor/ShopQualityboltWebBlazor.csproj", "ShopQualityboltWebBlazor/"]
+COPY ["QBExternalWebLibrary/QBExternalWebLibrary/QBExternalWebLibrary.csproj", "QBExternalWebLibrary/QBExternalWebLibrary/"]
+RUN dotnet restore "ShopQualityboltWebBlazor/ShopQualityboltWebBlazor.csproj"
+COPY . .
+WORKDIR "/src/ShopQualityboltWebBlazor"
+RUN dotnet build -c Release -o /app/build
+
+FROM build AS publish
+RUN dotnet publish -c Release -o /app/publish /p:UseAppHost=false
+
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "ShopQualityboltWebBlazor.dll"]
+```
+
 ### 6. docker-compose.yml (Development)
 
-Create in solution root:
+Full stack development with PostgreSQL, API, and Blazor frontend:
 
 ```yaml
+# Run with: docker-compose up -d
+# Access: Blazor UI at http://localhost:5000, API at http://localhost:5278
+
 services:
   db:
     image: postgres:16
+    container_name: qbcommerce-postgres-dev
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: devpassword
@@ -128,36 +157,111 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - qbcommerce-dev
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: qbcommerce-api-dev
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnectionString=Host=db;Database=QBCommerceDB;Username=postgres;Password=devpassword
+    ports:
+      - "5278:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - qbcommerce-dev
+
+  blazor:
+    build:
+      context: .
+      dockerfile: Dockerfile.blazor
+    container_name: qbcommerce-blazor-dev
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ApiSettings__BaseAddress=http://api:8080
+    ports:
+      - "5000:8080"
+    depends_on:
+      - api
+    networks:
+      - qbcommerce-dev
 
 volumes:
   pgdata:
+
+networks:
+  qbcommerce-dev:
+    driver: bridge
 ```
 
-### 7. docker-compose.yml (Production)
+### 7. docker-compose.prod.yml (Production)
 
-Create on Linux server:
+PostgreSQL runs natively on the host:
 
 ```yaml
+# Deploy with: docker-compose -f docker-compose.prod.yml up -d
+
 services:
-  app:
-    image: your-registry/qbcommerce:latest
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: qbcommerce-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Host=host.docker.internal;Database=QBCommerceDB;Username=qbcommerce;Password=SECURE_PASSWORD_HERE
+      - ASPNETCORE_URLS=http://+:8080
+      # Connection string can also be set via environment variable:
+      # - ConnectionStrings__DefaultConnectionString=Host=host.docker.internal;Database=QBCommerceDB;Username=qbcommerce;Password=YOUR_SECURE_PASSWORD
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+    networks:
+      - qbcommerce-network
+
+  blazor:
+    build:
+      context: .
+      dockerfile: Dockerfile.blazor
+    container_name: qbcommerce-blazor
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ApiSettings__BaseAddress=http://api:8080
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - qbcommerce-network
 
   nginx-proxy-manager:
     image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
     ports:
       - "80:80"
       - "443:443"
-      - "81:81"
+      - "81:81"   # Admin UI
     volumes:
       - ./npm-data:/data
       - ./npm-letsencrypt:/etc/letsencrypt
     restart: unless-stopped
+    networks:
+      - qbcommerce-network
+
+networks:
+  qbcommerce-network:
+    driver: bridge
 ```
 
 ## Production Server Setup
@@ -200,11 +304,17 @@ sudo systemctl restart postgresql
 1. Access admin UI at `http://your-server-ip:81`
 2. Default login: `admin@example.com` / `changeme`
 3. Change default password
-4. Add Proxy Host:
+4. Add Proxy Host for the **Blazor frontend** (main site):
    - Domain: `yourdomain.com`
-   - Forward hostname: `app`
+   - Forward hostname: `blazor`
    - Forward port: `8080`
+   - Enable Websockets (required for Blazor Server)
    - SSL tab: Upload custom certificate (.crt and .key files)
+5. Add Proxy Host for the **API** (if needed externally):
+   - Domain: `api.yourdomain.com` or `yourdomain.com/api`
+   - Forward hostname: `api`
+   - Forward port: `8080`
+   - SSL tab: Use same certificate
 
 ## What Stays the Same
 
@@ -223,25 +333,31 @@ sudo systemctl restart postgresql
 - [x] Update connection strings in appsettings.Development.json and appsettings.Production.json
 - [x] Delete old SQL Server migrations
 - [x] Create fresh PostgreSQL migration (`InitialCreate`)
-- [x] Create Dockerfile (in solution root)
-- [x] Create docker-compose.yml (for local dev)
-- [x] Create docker-compose.prod.yml (for production)
+- [x] Create Dockerfile.api (API backend)
+- [x] Create Dockerfile.blazor (Blazor frontend)
+- [x] Create docker-compose.yml (full stack dev: PostgreSQL + API + Blazor)
+- [x] Create docker-compose.prod.yml (production: API + Blazor + Nginx Proxy Manager)
 - [x] Create .dockerignore
 - [x] Fix unrelated build issues (unused Azure/Identity imports)
 - [x] Build succeeds with PostgreSQL provider
 
 ### REMAINING STEPS
 
-1. **Install Docker Desktop on Windows dev machine** ← YOU ARE HERE
-   - Download complete, restart required
-   - After restart, Docker Desktop will start automatically
+1. **Install Docker Desktop on Windows dev machine** ✓ DONE
+   - WSL 2 enabled, Docker Desktop running
 
-2. **Start local PostgreSQL and test**
+2. **Build and start full dev stack** ✓ DONE
+   - All containers running (PostgreSQL, API, Blazor)
+   - Admin user seeded
+
+3. **Install Docker on Linux production server** ← YOU ARE HERE
    ```bash
    cd C:\Projects\QBECommerce_git\QBECommerce
-   docker-compose up -d db
+   docker-compose up -d --build
    ```
-   Then run the app with `dotnet run` to verify it connects and creates tables.
+   Access:
+   - Blazor UI: http://localhost:5000
+   - API/Swagger: http://localhost:5278/swagger
 
 3. **Install Docker on Linux production server**
    ```bash
@@ -283,7 +399,8 @@ sudo systemctl restart postgresql
 8. **Configure Nginx Proxy Manager**
    - Access http://your-server-ip:81
    - Upload custom SSL certificate
-   - Create proxy host pointing to app:8080
+   - Create proxy host for `blazor:8080` (main site, enable websockets)
+   - Optionally create proxy host for `api:8080` (if API needs external access)
 
 ### Files Changed
 
@@ -295,9 +412,10 @@ sudo systemctl restart postgresql
 | `ShopQualityboltWeb/ShopQualityboltWeb/appsettings.Development.json` | Modified |
 | `ShopQualityboltWeb/ShopQualityboltWeb/appsettings.Production.json` | Modified |
 | `QBExternalWebLibrary/Migrations/` | Recreated for PostgreSQL |
-| `Dockerfile` | Created |
-| `docker-compose.yml` | Created |
-| `docker-compose.prod.yml` | Created |
+| `Dockerfile.api` | Created (API backend) |
+| `Dockerfile.blazor` | Created (Blazor frontend) |
+| `docker-compose.yml` | Created (full dev stack) |
+| `docker-compose.prod.yml` | Created (production) |
 | `.dockerignore` | Created |
 | `Controllers/Api/AccountsController.cs` | Fixed unused import |
 | `Controllers/Api/PunchOutSessionsController.cs` | Fixed unused import |

@@ -3,11 +3,11 @@
 # Deploy with: docker-compose -f docker-compose.prod.yml up -d
 
 services:
-  app:
+  api:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: qbcommerce-app
+      dockerfile: Dockerfile.api
+    container_name: qbcommerce-api
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080
@@ -15,6 +15,21 @@ services:
       # - ConnectionStrings__DefaultConnectionString=Host=host.docker.internal;Database=QBCommerceDB;Username=qbcommerce;Password=YOUR_SECURE_PASSWORD
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - qbcommerce-network
+
+  blazor:
+    build:
+      context: .
+      dockerfile: Dockerfile.blazor
+    container_name: qbcommerce-blazor
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ApiSettings__BaseAddress=http://api:8080
+    depends_on:
+      - api
     restart: unless-stopped
     networks:
       - qbcommerce-network

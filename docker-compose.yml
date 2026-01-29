@@ -1,6 +1,6 @@
-# Development docker-compose - PostgreSQL only
+# Development docker-compose - Full stack
 # Run with: docker-compose up -d
-# Then run your app with: dotnet run
+# Access: Blazor UI at http://localhost:5000, API at http://localhost:5278
 
 services:
   db:
@@ -19,6 +19,45 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - qbcommerce-dev
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: qbcommerce-api-dev
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnectionString=Host=db;Database=QBCommerceDB;Username=postgres;Password=devpassword
+    ports:
+      - "5278:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - qbcommerce-dev
+
+  blazor:
+    build:
+      context: .
+      dockerfile: Dockerfile.blazor
+    container_name: qbcommerce-blazor-dev
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ApiSettings__BaseAddress=http://api:8080
+    ports:
+      - "5000:8080"
+    depends_on:
+      - api
+    networks:
+      - qbcommerce-dev
 
 volumes:
   pgdata:
+
+networks:
+  qbcommerce-dev:
+    driver: bridge

@@ -349,6 +349,58 @@ using (var scope = app.Services.CreateScope())
         }
         
         logger.LogInformation("Role seeding completed successfully");
+
+        // Seed admin user
+        var adminEmail = builder.Configuration["AdminUser:Email"];
+        var adminPassword = builder.Configuration["AdminUser:Password"];
+
+        if (!string.IsNullOrEmpty(adminEmail) && !string.IsNullOrEmpty(adminPassword))
+        {
+            var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+            var existingAdmin = await userManager.FindByEmailAsync(adminEmail);
+
+            if (existingAdmin == null)
+            {
+                logger.LogInformation("Creating admin user: {Email}", adminEmail);
+                var adminUser = new ApplicationUser
+                {
+                    UserName = adminEmail,
+                    Email = adminEmail,
+                    EmailConfirmed = true,
+                    GivenName = "Admin",
+                    FamilyName = "User"
+                };
+
+                var result = await userManager.CreateAsync(adminUser, adminPassword);
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(adminUser, "Admin");
+                    logger.LogInformation("Admin user created and assigned Admin role");
+                }
+                else
+                {
+                    logger.LogError("Failed to create admin user: {Errors}",
+                        string.Join(", ", result.Errors.Select(e => e.Description)));
+                }
+            }
+            else
+            {
+                // Ensure existing user has Admin role
+                if (!await userManager.IsInRoleAsync(existingAdmin, "Admin"))
+                {
+                    await userManager.AddToRoleAsync(existingAdmin, "Admin");
+                    logger.LogInformation("Added Admin role to existing user: {Email}", adminEmail);
+                }
+                else
+                {
+                    logger.LogInformation("Admin user already exists: {Email}", adminEmail);
+                }
+            }
+        }
+        else
+        {
+            logger.LogWarning("AdminUser:Email or AdminUser:Password not configured - skipping admin seeding");
+        }
     }
     catch (Exception ex)
     {
